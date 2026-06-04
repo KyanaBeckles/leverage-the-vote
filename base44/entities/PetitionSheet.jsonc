@@ -1,0 +1,66 @@
+{
+  "name": "PetitionSheet",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "sheet_number": {
+      "type": "string",
+      "description": "Unique sheet identifier"
+    },
+    "pipeline_status": {
+      "type": "string",
+      "enum": [
+        "blank_issued",
+        "in_field",
+        "returned",
+        "scanned",
+        "at_clerk",
+        "certified",
+        "rejected"
+      ],
+      "default": "blank_issued"
+    },
+    "assigned_to_member_id": {
+      "type": "string"
+    },
+    "assigned_to_name": {
+      "type": "string"
+    },
+    "issued_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "returned_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "scan_url": {
+      "type": "string",
+      "description": "URL of scanned petition image"
+    },
+    "raw_signature_count": {
+      "type": "number",
+      "default": 0
+    },
+    "certified_count": {
+      "type": "number",
+      "default": 0
+    },
+    "rejected_count": {
+      "type": "number",
+      "default": 0
+    },
+    "town_clerk": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "sheet_number"
+  ]
+}

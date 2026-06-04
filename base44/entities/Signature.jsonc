@@ -1,0 +1,58 @@
+{
+  "name": "Signature",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "petition_sheet_id": {
+      "type": "string"
+    },
+    "line_number": {
+      "type": "number"
+    },
+    "signer_name": {
+      "type": "string"
+    },
+    "signer_address": {
+      "type": "string"
+    },
+    "signer_city": {
+      "type": "string"
+    },
+    "signer_zip": {
+      "type": "string"
+    },
+    "date_signed": {
+      "type": "string",
+      "format": "date"
+    },
+    "matched_voter_id": {
+      "type": "string",
+      "description": "Matched voter from voter file"
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "matched",
+        "unmatched",
+        "flagged",
+        "certified",
+        "rejected"
+      ],
+      "default": "pending"
+    },
+    "flag_reason": {
+      "type": "string"
+    },
+    "entered_by_member_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "petition_sheet_id",
+    "signer_name"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "name": "CampaignMember",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string",
+      "description": "Associated campaign ID"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "User ID"
+    },
+    "name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "status_tag": {
+      "type": "string",
+      "enum": [
+        "volunteer",
+        "staff",
+        "consultant"
+      ],
+      "default": "volunteer"
+    },
+    "access_level": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "manager",
+        "contributor",
+        "field_only"
+      ],
+      "default": "contributor"
+    },
+    "org_node": {
+      "type": "string",
+      "description": "Org chart role node title"
+    },
+    "org_parent_id": {
+      "type": "string",
+      "description": "Parent node member ID for org chart"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "campaign_id",
+    "name"
+  ]
+}

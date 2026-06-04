@@ -1,0 +1,66 @@
+{
+  "name": "Task",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "todo",
+        "in_progress",
+        "done",
+        "blocked"
+      ],
+      "default": "todo"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium"
+    },
+    "assigned_to_node": {
+      "type": "string",
+      "description": "Org chart node this task is assigned to"
+    },
+    "assigned_to_member_id": {
+      "type": "string"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "ballot_access",
+        "field",
+        "communications",
+        "finance",
+        "operations",
+        "compliance",
+        "general"
+      ]
+    },
+    "linked_contact_id": {
+      "type": "string",
+      "description": "CRM-linked contact"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "title"
+  ]
+}

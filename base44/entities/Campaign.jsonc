@@ -1,0 +1,71 @@
+{
+  "name": "Campaign",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Campaign name"
+    },
+    "candidate_name": {
+      "type": "string",
+      "description": "Candidate full name"
+    },
+    "office": {
+      "type": "string",
+      "description": "Office being sought"
+    },
+    "state": {
+      "type": "string",
+      "description": "State abbreviation"
+    },
+    "district": {
+      "type": "string",
+      "description": "District or jurisdiction"
+    },
+    "party": {
+      "type": "string",
+      "enum": [
+        "Democratic",
+        "Republican",
+        "Independent",
+        "Green",
+        "Libertarian",
+        "Other"
+      ]
+    },
+    "election_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "filing_deadline": {
+      "type": "string",
+      "format": "date"
+    },
+    "signature_threshold": {
+      "type": "number",
+      "description": "Required certified signatures"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "setup",
+        "active",
+        "filed",
+        "won",
+        "lost"
+      ],
+      "default": "setup"
+    },
+    "setup_progress": {
+      "type": "object",
+      "description": "Onboarding checklist progress"
+    },
+    "logo_url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "candidate_name"
+  ]
+}

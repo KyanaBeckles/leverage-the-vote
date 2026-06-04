@@ -1,0 +1,57 @@
+{
+  "name": "CalendarEvent",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "shift",
+        "meeting",
+        "deadline",
+        "canvass",
+        "fundraiser",
+        "other"
+      ],
+      "default": "other"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "location": {
+      "type": "string"
+    },
+    "is_public": {
+      "type": "boolean",
+      "default": false
+    },
+    "assigned_to_node": {
+      "type": "string"
+    },
+    "assigned_to_member_id": {
+      "type": "string"
+    },
+    "rsvp_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "campaign_id",
+    "title",
+    "start_date"
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "name": "Voter",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "first_name": {
+      "type": "string"
+    },
+    "last_name": {
+      "type": "string"
+    },
+    "full_name": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "zip": {
+      "type": "string"
+    },
+    "ward": {
+      "type": "string"
+    },
+    "precinct": {
+      "type": "string"
+    },
+    "party_affiliation": {
+      "type": "string"
+    },
+    "voter_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "purged",
+        "unknown"
+      ],
+      "default": "active"
+    },
+    "phone": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "contact_status": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "not_home",
+        "supportive",
+        "undecided",
+        "opposed",
+        "signed"
+      ],
+      "default": "unknown"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "last_name"
+  ]
+}
