@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Users, UserCircle } from "lucide-react";
+import { Plus, Search, Users, UserCircle, UserPlus } from "lucide-react";
 import MemberDialog from "../components/team/MemberDialog";
 import OrgChart from "../components/team/OrgChart";
+import InviteUserPanel from "../components/team/InviteUserPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const statusColors = { volunteer: "bg-blue-100 text-blue-700", staff: "bg-emerald-100 text-emerald-700", consultant: "bg-purple-100 text-purple-700" };
@@ -52,6 +53,7 @@ export default function Team() {
         <TabsList className="mb-6">
           <TabsTrigger value="directory"><Users className="w-4 h-4 mr-1.5" /> Directory</TabsTrigger>
           <TabsTrigger value="orgchart"><UserCircle className="w-4 h-4 mr-1.5" /> Org Chart</TabsTrigger>
+          <TabsTrigger value="invite"><UserPlus className="w-4 h-4 mr-1.5" /> Invite</TabsTrigger>
         </TabsList>
 
         <TabsContent value="directory">
@@ -100,6 +102,10 @@ export default function Team() {
 
         <TabsContent value="orgchart">
           <OrgChart members={members} onEditMember={(m) => { setEditMember(m); setShowDialog(true); }} />
+        </TabsContent>
+
+        <TabsContent value="invite">
+          <InviteUserPanel />
         </TabsContent>
       </Tabs>
 
