@@ -89,11 +89,10 @@ Return your response as JSON with this exact structure:
     let sheetRecord;
 
     if (existingSheets.length > 0) {
-      // Update existing sheet — add the scan URL for this side and update count
+      // Update existing sheet — replace the scan URL for this side and set authoritative count
       sheetRecord = existingSheets[0];
-      const currentCount = Number(sheetRecord.raw_signature_count) || 0;
       const updateData = {
-        raw_signature_count: currentCount + sigCount,
+        raw_signature_count: sigCount,
         ai_processed: true,
         ai_extracted_data: JSON.stringify(extracted),
         pipeline_status: "scanned",
@@ -121,7 +120,24 @@ Return your response as JSON with this exact structure:
       sheetRecord = await base44.entities.PetitionSheet.create(createData);
     }
 
-    // Create Signature records for each signer
+    // Deduplicate signatures: for this sheet+side, delete all existing Signature records
+    // for the line numbers we are about to write, then insert the fresh authoritative set.
+    // This means a re-upload of a partially filled sheet will replace old entries with the
+    // latest data rather than stacking duplicates.
+    const incomingLineNumbers = (extracted.signers || []).map(s => s.line_number);
+
+    if (incomingLineNumbers.length > 0) {
+      const existingSignatures = await base44.entities.Signature.filter({
+        campaign_id,
+        petition_sheet_id: sheetRecord.id,
+      });
+
+      // Delete any existing signature records whose line numbers appear in this upload
+      const toDelete = existingSignatures.filter(s => incomingLineNumbers.includes(s.line_number));
+      await Promise.all(toDelete.map(s => base44.entities.Signature.delete(s.id)));
+    }
+
+    // Insert the fresh, authoritative signature records from this upload
     const signaturePromises = (extracted.signers || []).map(signer =>
       base44.entities.Signature.create({
         campaign_id,
