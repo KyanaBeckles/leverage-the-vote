@@ -1,13 +1,13 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Filter } from "lucide-react";
-import TaskDialog from "../components/tasks/TaskDialog";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import TaskDetailDialog from "../components/tasks/TaskDetailDialog";
 import TaskCard from "../components/tasks/TaskCard";
 
 const statusCols = [
@@ -47,6 +47,15 @@ export default function Tasks() {
     return matchSearch && matchPriority;
   });
 
+  const onDragEnd = (result) => {
+    const { destination, source, draggableId } = result;
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    if (destination.droppableId !== source.droppableId) {
+      updateMutation.mutate({ id: draggableId, data: { status: destination.droppableId } });
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 lg:p-8 max-w-[1400px]">
       <div className="flex items-center justify-between mb-6">
@@ -80,37 +89,59 @@ export default function Tasks() {
         </Select>
       </div>
 
-      {/* Kanban Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statusCols.map((col) => {
-          const colTasks = filtered.filter(t => t.status === col.key);
-          return (
-            <div key={col.key}>
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                <span className="text-sm font-medium">{col.label}</span>
-                <Badge variant="secondary" className="ml-auto text-xs h-5 px-1.5">{colTasks.length}</Badge>
+      {/* Kanban Board with DnD */}
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {statusCols.map((col) => {
+            const colTasks = filtered.filter(t => t.status === col.key);
+            return (
+              <div key={col.key} className="flex flex-col">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <div className={`w-2 h-2 rounded-full ${col.color}`} />
+                  <span className="text-sm font-medium">{col.label}</span>
+                  <Badge variant="secondary" className="ml-auto text-xs h-5 px-1.5">{colTasks.length}</Badge>
+                </div>
+                <Droppable droppableId={col.key}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`space-y-2 min-h-[200px] rounded-lg p-2 transition-colors ${snapshot.isDraggingOver ? "bg-muted/60" : "bg-transparent"}`}
+                    >
+                      {colTasks.map((task, index) => (
+                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              style={provided.draggableProps.style}
+                            >
+                              <TaskCard
+                                task={task}
+                                dragHandleProps={provided.dragHandleProps}
+                                isDragging={snapshot.isDragging}
+                                onEdit={() => { setEditTask(task); setShowDialog(true); }}
+                                onStatusChange={(newStatus) => updateMutation.mutate({ id: task.id, data: { status: newStatus } })}
+                              />
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               </div>
-              <div className="space-y-2 min-h-[200px]">
-                {colTasks.map((task) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    onEdit={() => { setEditTask(task); setShowDialog(true); }}
-                    onStatusChange={(newStatus) => updateMutation.mutate({ id: task.id, data: { status: newStatus } })}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </DragDropContext>
 
-      <TaskDialog 
-        open={showDialog} 
-        onOpenChange={setShowDialog} 
-        task={editTask} 
-        campaignId={campaign?.id} 
+      <TaskDetailDialog
+        open={showDialog}
+        onOpenChange={setShowDialog}
+        task={editTask}
+        campaignId={campaign?.id}
       />
     </div>
   );
