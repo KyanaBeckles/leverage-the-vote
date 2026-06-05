@@ -142,11 +142,13 @@ export default function TaskDetailDialog({ open, onOpenChange, task, campaignId 
         </DialogHeader>
 
         <Tabs defaultValue="details" className="mt-2">
-          <TabsList className="w-full">
-            <TabsTrigger value="details" className="flex-1">Details</TabsTrigger>
-            {task && <TabsTrigger value="comments" className="flex-1">Comments {comments.length > 0 && `(${comments.length})`}</TabsTrigger>}
-            {task && <TabsTrigger value="attachments" className="flex-1">Attachments {attachments.length > 0 && `(${attachments.length})`}</TabsTrigger>}
-          </TabsList>
+          {task && (
+            <TabsList className="w-full">
+              <TabsTrigger value="details" className="flex-1">Details</TabsTrigger>
+              <TabsTrigger value="comments" className="flex-1">Comments {comments.length > 0 && `(${comments.length})`}</TabsTrigger>
+              <TabsTrigger value="attachments" className="flex-1">Attachments {attachments.length > 0 && `(${attachments.length})`}</TabsTrigger>
+            </TabsList>
+          )}
 
           {/* DETAILS TAB */}
           <TabsContent value="details" className="space-y-4 mt-4">
