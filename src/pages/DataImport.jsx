@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, CheckCircle2, AlertTriangle, HelpCircle, ArrowRight, Loader2 } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertTriangle, HelpCircle, ArrowRight, Loader2, HardDrive, Link as LinkIcon, Archive } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import GoogleDrivePicker from "@/components/import/GoogleDrivePicker";
 
 const VOTER_FIELDS = [
   { key: "first_name", label: "First Name" },
@@ -25,14 +27,80 @@ const VOTER_FIELDS = [
   { key: "skip", label: "— Skip this column —" },
 ];
 
+// Extract file ID from a Google Drive share link
+function extractDriveFileId(url) {
+  const patterns = [
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+    /\/open\?id=([a-zA-Z0-9_-]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+// Unzip a base64-encoded zip and return first CSV text found
+async function unzipFirstCSV(base64) {
+  // Convert base64 → Uint8Array
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  // Use DecompressionStream on each file entry (manual ZIP parsing)
+  // Simple ZIP parser: find Local File Headers (PK\x03\x04)
+  const view = new DataView(bytes.buffer);
+  const results = [];
+
+  let offset = 0;
+  while (offset < bytes.length - 4) {
+    if (view.getUint32(offset, true) !== 0x04034b50) { offset++; continue; }
+    const flags = view.getUint16(offset + 6, true);
+    const compression = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const fileNameLen = view.getUint16(offset + 26, true);
+    const extraLen = view.getUint16(offset + 28, true);
+    const fileNameBytes = bytes.slice(offset + 30, offset + 30 + fileNameLen);
+    const fileName = new TextDecoder().decode(fileNameBytes);
+    const dataStart = offset + 30 + fileNameLen + extraLen;
+    const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+
+    if (fileName.endsWith(".csv") || fileName.endsWith(".txt")) {
+      let text;
+      if (compression === 0) {
+        text = new TextDecoder().decode(compressed);
+      } else if (compression === 8) {
+        const ds = new DecompressionStream("deflate-raw");
+        const writer = ds.writable.getWriter();
+        writer.write(compressed);
+        writer.close();
+        const buf = await new Response(ds.readable).arrayBuffer();
+        text = new TextDecoder().decode(buf);
+      }
+      if (text) results.push({ name: fileName, text });
+    }
+
+    offset = dataStart + compressedSize;
+  }
+
+  return results;
+}
+
 export default function DataImport() {
-  const [file, setFile] = useState(null);
+  const [source, setSource] = useState("local"); // "local" | "drive_browse" | "drive_link"
+  const [driveLink, setDriveLink] = useState("");
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
+
+  const [file, setFile] = useState(null); // { name, text } or { name, base64, contentType }
   const [csvHeaders, setCsvHeaders] = useState([]);
   const [csvPreview, setCsvPreview] = useState([]);
   const [mapping, setMapping] = useState({});
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [loadingDrive, setLoadingDrive] = useState(false);
+  const [zipFiles, setZipFiles] = useState([]); // extracted CSVs from a zip
   const fileRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -54,105 +122,236 @@ export default function DataImport() {
     return { headers, rows, totalRows: lines.length - 1 };
   };
 
-  const handleFileUpload = (e) => {
+  const loadCSVText = (text, name) => {
+    setFile({ name, text });
+    setImportResult(null);
+    setZipFiles([]);
+    const { headers, rows } = parseCSV(text);
+    setCsvHeaders(headers);
+    setCsvPreview(rows);
+    const autoMap = {};
+    headers.forEach(h => {
+      const lower = h.toLowerCase().replace(/[_\s-]/g, "");
+      const match = VOTER_FIELDS.find(f => {
+        const fLower = f.key.replace(/_/g, "");
+        return lower.includes(fLower) || fLower.includes(lower);
+      });
+      autoMap[h] = match ? match.key : "skip";
+    });
+    setMapping(autoMap);
+  };
+
+  const handleLocalFile = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    setFile(f);
-    setImportResult(null);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const { headers, rows, totalRows } = parseCSV(ev.target.result);
-      setCsvHeaders(headers);
-      setCsvPreview(rows);
-      // Auto-map based on name similarity
-      const autoMap = {};
-      headers.forEach(h => {
-        const lower = h.toLowerCase().replace(/[_\s-]/g, "");
-        const match = VOTER_FIELDS.find(f => {
-          const fLower = f.key.replace(/_/g, "");
-          return lower.includes(fLower) || fLower.includes(lower);
-        });
-        autoMap[h] = match ? match.key : "skip";
-      });
-      setMapping(autoMap);
-    };
-    reader.readAsText(f);
+    if (f.name.endsWith(".zip")) {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const binary = ev.target.result;
+        const bytes = new Uint8Array(binary);
+        let b64 = "";
+        for (let i = 0; i < bytes.length; i++) b64 += String.fromCharCode(bytes[i]);
+        const base64 = btoa(b64);
+        const csvs = await unzipFirstCSV(base64);
+        if (csvs.length === 1) {
+          loadCSVText(csvs[0].text, csvs[0].name);
+        } else if (csvs.length > 1) {
+          setZipFiles(csvs);
+          setFile({ name: f.name });
+          setImportResult(null);
+        }
+      };
+      reader.readAsArrayBuffer(f);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => loadCSVText(ev.target.result, f.name);
+      reader.readAsText(f);
+    }
+  };
+
+  const handleDriveFilePicked = async (driveFile) => {
+    setShowDrivePicker(false);
+    setLoadingDrive(true);
+    const res = await base44.functions.invoke("googleDriveFiles", { action: "download", fileId: driveFile.id });
+    const { base64, contentType } = res.data;
+    setLoadingDrive(false);
+
+    if (driveFile.name.endsWith(".zip") || contentType?.includes("zip")) {
+      const csvs = await unzipFirstCSV(base64);
+      if (csvs.length === 1) {
+        loadCSVText(csvs[0].text, csvs[0].name);
+      } else if (csvs.length > 1) {
+        setZipFiles(csvs);
+        setFile({ name: driveFile.name });
+        setImportResult(null);
+      }
+    } else {
+      const binary = atob(base64);
+      loadCSVText(binary, driveFile.name);
+    }
+  };
+
+  const handleDriveLinkLoad = async () => {
+    const fileId = extractDriveFileId(driveLink);
+    if (!fileId) { alert("Couldn't find a file ID in that link. Make sure it's a valid Google Drive share link."); return; }
+    setLoadingDrive(true);
+    const res = await base44.functions.invoke("googleDriveFiles", { action: "download", fileId });
+    const { base64, contentType } = res.data;
+    setLoadingDrive(false);
+
+    if (contentType?.includes("zip")) {
+      const csvs = await unzipFirstCSV(base64);
+      if (csvs.length === 1) {
+        loadCSVText(csvs[0].text, csvs[0].name);
+      } else if (csvs.length > 1) {
+        setZipFiles(csvs);
+        setFile({ name: "drive-link.zip" });
+      }
+    } else {
+      const binary = atob(base64);
+      loadCSVText(binary, "drive-file.csv");
+    }
+  };
+
+  const resetFile = () => {
+    setFile(null); setCsvHeaders([]); setCsvPreview([]); setMapping({});
+    setImportResult(null); setZipFiles([]); setDriveLink("");
   };
 
   const handleImport = async () => {
-    if (!campaign) return;
+    if (!campaign || !file?.text) return;
     setImporting(true);
     setProgress(0);
 
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const lines = ev.target.result.split("\n").filter(l => l.trim());
-      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
-      const dataLines = lines.slice(1);
-      
-      let imported = 0;
-      let failed = 0;
-      const batchSize = 25;
+    const lines = file.text.split("\n").filter(l => l.trim());
+    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    const dataLines = lines.slice(1);
+    let imported = 0, failed = 0;
+    const batchSize = 25;
 
-      for (let i = 0; i < dataLines.length; i += batchSize) {
-        const batch = dataLines.slice(i, i + batchSize);
-        const records = batch.map(line => {
-          const values = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
-          const record = { campaign_id: campaign.id };
-          headers.forEach((h, idx) => {
-            const field = mapping[h];
-            if (field && field !== "skip") {
-              record[field] = values[idx] || "";
-            }
-          });
-          return record;
-        }).filter(r => r.last_name || r.full_name);
+    for (let i = 0; i < dataLines.length; i += batchSize) {
+      const batch = dataLines.slice(i, i + batchSize);
+      const records = batch.map(line => {
+        const values = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+        const record = { campaign_id: campaign.id };
+        headers.forEach((h, idx) => {
+          const field = mapping[h];
+          if (field && field !== "skip") record[field] = values[idx] || "";
+        });
+        return record;
+      }).filter(r => r.last_name || r.full_name);
 
-        if (records.length > 0) {
-          await base44.entities.Voter.bulkCreate(records);
-          imported += records.length;
-        }
-        failed += batch.length - records.length;
-        setProgress(Math.round(((i + batch.length) / dataLines.length) * 100));
+      if (records.length > 0) {
+        await base44.entities.Voter.bulkCreate(records);
+        imported += records.length;
       }
+      failed += batch.length - records.length;
+      setProgress(Math.round(((i + batch.length) / dataLines.length) * 100));
+    }
 
-      setImportResult({ imported, failed, total: dataLines.length });
-      setImporting(false);
-      queryClient.invalidateQueries({ queryKey: ["voters"] });
-    };
-    reader.readAsText(file);
+    setImportResult({ imported, failed, total: dataLines.length });
+    setImporting(false);
+    queryClient.invalidateQueries({ queryKey: ["voters"] });
   };
 
   return (
     <div className="min-h-screen p-6 lg:p-8 max-w-[900px]">
       <div className="mb-6">
         <h1 className="text-2xl font-display font-bold">Data Import</h1>
-        <p className="text-sm text-muted-foreground">Upload voter files and map columns to database fields</p>
+        <p className="text-sm text-muted-foreground">Upload voter files from your computer, Google Drive, or a share link. ZIP files are automatically extracted.</p>
       </div>
 
-      {/* Upload Area */}
+      {/* Source selector */}
+      {!file && (
+        <div className="flex gap-2 mb-4">
+          {[
+            { id: "local", label: "Upload File", icon: Upload },
+            { id: "drive_browse", label: "Browse Google Drive", icon: HardDrive },
+            { id: "drive_link", label: "Paste Drive Link", icon: LinkIcon },
+          ].map(({ id, label, icon: Icon }) => (
+            <Button
+              key={id}
+              variant={source === id ? "default" : "outline"}
+              size="sm"
+              onClick={() => { setSource(id); setShowDrivePicker(id === "drive_browse"); }}
+              className={source === id ? "bg-primary text-primary-foreground" : ""}
+            >
+              <Icon className="w-3.5 h-3.5 mr-1.5" /> {label}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Upload area */}
       <Card className={`mb-6 ${!file ? "border-dashed" : ""}`}>
         <CardContent className="p-8">
-          {!file ? (
+          {loadingDrive ? (
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">Downloading from Google Drive…</p>
+            </div>
+          ) : file ? (
+            <div>
+              <div className="flex items-center gap-3">
+                {file.name?.endsWith(".zip") ? <Archive className="w-8 h-8 text-amber-500" /> : <FileText className="w-8 h-8 text-accent" />}
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {zipFiles.length > 0 ? `ZIP contains ${zipFiles.length} CSV files — select one below` : `${csvHeaders.length} columns detected`}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={resetFile}>Change File</Button>
+              </div>
+
+              {/* ZIP file selector */}
+              {zipFiles.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Select a CSV from the ZIP:</p>
+                  {zipFiles.map((f) => (
+                    <button
+                      key={f.name}
+                      onClick={() => loadCSVText(f.text, f.name)}
+                      className="w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                      <span className="text-sm">{f.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : source === "local" ? (
             <div className="text-center">
               <Upload className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
               <h3 className="text-lg font-display font-semibold mb-2">Upload Voter File</h3>
-              <p className="text-sm text-muted-foreground mb-4">Supports CSV files from your state voter database</p>
-              <input type="file" ref={fileRef} accept=".csv" onChange={handleFileUpload} className="hidden" />
+              <p className="text-sm text-muted-foreground mb-4">Supports CSV files and ZIP archives from your state voter database</p>
+              <input type="file" ref={fileRef} accept=".csv,.zip" onChange={handleLocalFile} className="hidden" />
               <Button onClick={() => fileRef.current?.click()} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Upload className="w-4 h-4 mr-1.5" /> Choose File
               </Button>
             </div>
+          ) : source === "drive_browse" ? (
+            <div>
+              <GoogleDrivePicker onFileSelected={handleDriveFilePicked} onClose={() => setShowDrivePicker(false)} />
+            </div>
           ) : (
-            <div className="flex items-center gap-3">
-              <FileText className="w-8 h-8 text-accent" />
-              <div className="flex-1">
-                <p className="font-medium text-sm">{file.name}</p>
-                <p className="text-xs text-muted-foreground">{csvHeaders.length} columns detected</p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <LinkIcon className="w-5 h-5 text-muted-foreground" />
+                <h3 className="text-base font-display font-semibold">Paste a Google Drive Share Link</h3>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { setFile(null); setCsvHeaders([]); setCsvPreview([]); setMapping({}); setImportResult(null); }}>
-                Change File
-              </Button>
+              <p className="text-sm text-muted-foreground">Right-click any file in Google Drive → Share → Copy link, then paste it here.</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://drive.google.com/file/d/..."
+                  value={driveLink}
+                  onChange={e => setDriveLink(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleDriveLinkLoad} disabled={!driveLink} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                  Load
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -182,7 +381,7 @@ export default function DataImport() {
                   )}
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground/30 flex-shrink-0" />
-                <Select value={mapping[header] || "skip"} onValueChange={(v) => setMapping({...mapping, [header]: v})}>
+                <Select value={mapping[header] || "skip"} onValueChange={(v) => setMapping({ ...mapping, [header]: v })}>
                   <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {VOTER_FIELDS.map(f => (
@@ -192,7 +391,7 @@ export default function DataImport() {
                 </Select>
               </div>
             ))}
-            
+
             {importing && (
               <div className="mt-4">
                 <Progress value={progress} className="h-2" />
