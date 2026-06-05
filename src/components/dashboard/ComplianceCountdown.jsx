@@ -4,12 +4,14 @@ import { Clock, AlertTriangle } from "lucide-react";
 import { differenceInDays, differenceInHours, format } from "date-fns";
 
 export default function ComplianceCountdown({ campaign }) {
+  const petitionDeadline = campaign?.petition_deadline ? new Date(campaign.petition_deadline) : null;
   const filingDeadline = campaign?.filing_deadline ? new Date(campaign.filing_deadline) : null;
   const electionDate = campaign?.election_date ? new Date(campaign.election_date) : null;
   const now = new Date();
 
   const deadlines = [
-    filingDeadline && { label: "Filing Deadline", date: filingDeadline },
+    petitionDeadline && { label: "Petition Submission Deadline", date: petitionDeadline },
+    filingDeadline && { label: "State Filing Deadline", date: filingDeadline },
     electionDate && { label: "Election Day", date: electionDate },
   ].filter(Boolean);
 
@@ -18,14 +20,14 @@ export default function ComplianceCountdown({ campaign }) {
       <Card className="bg-muted/50 border-dashed">
         <CardContent className="p-6 text-center">
           <Clock className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Set your filing deadline in campaign settings to see the compliance countdown</p>
+          <p className="text-sm text-muted-foreground">Set your petition or filing deadline in campaign settings to see the compliance countdown</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {deadlines.map((d) => {
         const daysLeft = differenceInDays(d.date, now);
         const hoursLeft = differenceInHours(d.date, now) % 24;

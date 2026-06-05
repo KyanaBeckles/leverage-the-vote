@@ -14,7 +14,7 @@ export default function CampaignSetupDialog({ open, onOpenChange, campaign }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "", candidate_name: "", office: "", state: "", district: "",
-    party: "Independent", election_date: "", filing_deadline: "", signature_threshold: "",
+    party: "Independent", election_date: "", filing_deadline: "", petition_deadline: "", signature_threshold: "",
   });
 
   useEffect(() => {
@@ -28,6 +28,7 @@ export default function CampaignSetupDialog({ open, onOpenChange, campaign }) {
         party: campaign.party || "Independent",
         election_date: campaign.election_date || "",
         filing_deadline: campaign.filing_deadline || "",
+        petition_deadline: campaign.petition_deadline || "",
         signature_threshold: campaign.signature_threshold || "",
       });
     }
@@ -101,11 +102,17 @@ export default function CampaignSetupDialog({ open, onOpenChange, campaign }) {
               <Input value={form.district} onChange={(e) => setForm({...form, district: e.target.value})} placeholder="e.g. 5th Middlesex" />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs flex items-center gap-1.5">Filing Deadline <FieldHint text="State-mandated date to submit certified signatures" /></Label>
+              <Label className="text-xs flex items-center gap-1.5">Petition Submission Deadline <FieldHint text="Internal campaign deadline for collecting signatures — built-in slack time before the state filing deadline" /></Label>
+              <Input type="date" value={form.petition_deadline} onChange={(e) => setForm({...form, petition_deadline: e.target.value})} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs flex items-center gap-1.5">State Filing Deadline <FieldHint text="State-mandated date to submit certified signatures to the Secretary of State" /></Label>
               <Input type="date" value={form.filing_deadline} onChange={(e) => setForm({...form, filing_deadline: e.target.value})} />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Election Date</Label>
               <Input type="date" value={form.election_date} onChange={(e) => setForm({...form, election_date: e.target.value})} />

@@ -39,7 +39,13 @@
     },
     "filing_deadline": {
       "type": "string",
-      "format": "date"
+      "format": "date",
+      "description": "State-mandated deadline to submit certified signatures to the Secretary of State"
+    },
+    "petition_deadline": {
+      "type": "string",
+      "format": "date",
+      "description": "Internal campaign deadline for petition submission (with slack time before filing deadline)"
     },
     "signature_threshold": {
       "type": "number",
