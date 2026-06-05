@@ -7,7 +7,7 @@ import SetupLaunchpad from "../components/dashboard/SetupLaunchpad";
 import QuickStats from "../components/dashboard/QuickStats";
 import RecentTasks from "../components/dashboard/RecentTasks";
 import { Button } from "@/components/ui/button";
-import { Plus, Settings } from "lucide-react";
+import { Plus, Settings, MapPin, Award } from "lucide-react";
 import { Link } from "react-router-dom";
 import CampaignSetupDialog from "../components/dashboard/CampaignSetupDialog";
 import SignatureMap from "../components/dashboard/SignatureMap";
@@ -71,55 +71,114 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen p-6 lg:p-8 max-w-[1400px]">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-display font-bold">{campaign?.name || "Command Center"}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {campaign?.candidate_name && `${campaign.candidate_name} for ${campaign.office || "Office"}`}
-            {campaign?.district && ` · ${campaign.district}`}
-          </p>
+    <div className="min-h-screen bg-background">
+      {/* Hero Header */}
+      {campaign && (
+        <div className="bg-gradient-to-r from-primary via-primary to-primary/80 text-primary-foreground px-6 lg:px-8 py-8">
+          <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-5">
+              {campaign.logo_url ? (
+                <img src={campaign.logo_url} alt="logo" className="w-16 h-16 rounded-xl object-cover border-2 border-primary-foreground/20 flex-shrink-0" />
+              ) : (
+                <div className="w-16 h-16 rounded-xl bg-primary-foreground/10 border-2 border-primary-foreground/20 flex items-center justify-center flex-shrink-0">
+                  <Award className="w-8 h-8 text-primary-foreground/70" />
+                </div>
+              )}
+              <div>
+                <h1 className="text-2xl lg:text-3xl font-display font-bold leading-tight">
+                  {campaign.name || campaign.candidate_name}
+                </h1>
+                <div className="flex items-center gap-3 mt-1 flex-wrap">
+                  {campaign.office && (
+                    <span className="text-primary-foreground/80 text-sm font-medium">
+                      {campaign.candidate_name} for {campaign.office}
+                    </span>
+                  )}
+                  {campaign.district && (
+                    <>
+                      <span className="text-primary-foreground/40">·</span>
+                      <span className="flex items-center gap-1 text-primary-foreground/70 text-sm">
+                        <MapPin className="w-3.5 h-3.5" />
+                        {campaign.district}
+                        {campaign.state && `, ${campaign.state}`}
+                      </span>
+                    </>
+                  )}
+                  {campaign.party && (
+                    <>
+                      <span className="text-primary-foreground/40">·</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary-foreground/15 text-primary-foreground/90 font-medium">
+                        {campaign.party}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSetup(true)}
+              className="bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/20 flex-shrink-0"
+            >
+              <Settings className="w-4 h-4 mr-1.5" /> Settings
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowSetup(true)}>
-            <Settings className="w-4 h-4 mr-1.5" /> Campaign Settings
-          </Button>
-        </div>
-      </div>
+      )}
 
-      {/* Content Grid */}
-      <div className="space-y-6">
-        <QuickStats 
-          voterCount={voters.length} 
-          memberCount={members.length} 
-          taskCount={tasks.filter(t => t.status !== "done").length} 
-          sheetCount={sheets.length} 
-        />
+      {/* Main Content */}
+      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-8">
 
+        {/* Stats */}
+        <section>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Overview</p>
+          <QuickStats
+            voterCount={voters.length}
+            memberCount={members.length}
+            taskCount={tasks.filter((t) => t.status !== "done").length}
+            sheetCount={sheets.length}
+          />
+        </section>
+
+        {/* Countdowns */}
+        <ComplianceCountdown campaign={campaign} />
+
+        {/* Operations + Progress */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <ComplianceCountdown campaign={campaign} />
-            <RecentTasks tasks={tasks} />
+            <section>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Operations</p>
+              <RecentTasks tasks={tasks} />
+            </section>
+
+            <section>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Field Activity</p>
+              <SignatureMap signatures={signatures} />
+            </section>
           </div>
+
           <div className="space-y-6">
-            <SetupLaunchpad 
-              campaign={campaign} 
-              voterCount={voters.length} 
-              memberCount={members.length} 
-              sheetCount={sheets.length} 
-            />
-            <SignatureTracker campaign={campaign} signatures={signatures} />
+            <section>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Progress</p>
+              <div className="space-y-4">
+                <SetupLaunchpad
+                  campaign={campaign}
+                  voterCount={voters.length}
+                  memberCount={members.length}
+                  sheetCount={sheets.length}
+                />
+                <SignatureTracker campaign={campaign} signatures={signatures} />
+              </div>
+            </section>
           </div>
         </div>
-
-        <SignatureMap signatures={signatures} />
       </div>
 
-      <CampaignSetupDialog 
-        open={showSetup} 
-        onOpenChange={setShowSetup} 
-        campaign={campaign} 
+      <CampaignSetupDialog
+        open={showSetup}
+        onOpenChange={setShowSetup}
+        campaign={campaign}
       />
     </div>
   );
