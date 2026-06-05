@@ -21,6 +21,7 @@ import PetitionValidation from '@/pages/PetitionValidation';
 import Voters from '@/pages/Voters';
 import CalendarPage from '@/pages/CalendarPage';
 import DataImport from '@/pages/DataImport';
+import Documents from '@/pages/Documents';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -62,6 +63,7 @@ const AuthenticatedApp = () => {
           <Route path="/voters" element={<Voters />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/import" element={<DataImport />} />
+          <Route path="/documents" element={<Documents />} />
         </Route>
       </Route>
       

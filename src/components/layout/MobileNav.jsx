@@ -2,8 +2,10 @@ import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, ClipboardList, Users, FileCheck,
-  Map, Calendar, Upload, Vote, Menu, X, LogOut
+  Map, Calendar, Upload, Vote, Menu, X, LogOut, Camera, FolderOpen
 } from "lucide-react";
+import CameraCapture from "@/components/capture/CameraCapture";
+import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { useState } from "react";
 
@@ -15,6 +17,7 @@ const navItems = [
   { path: "/voters", icon: Map, label: "Voters" },
   { path: "/calendar", icon: Calendar, label: "Calendar" },
   { path: "/petition-validation", icon: Vote, label: "Validation" },
+  { path: "/documents", icon: FolderOpen, label: "Documents" },
   { path: "/import", icon: Upload, label: "Import" },
 ];
 
@@ -24,6 +27,13 @@ const bottomItems = navItems.slice(0, 4);
 export default function MobileNav() {
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: () => base44.entities.Campaign.list(),
+  });
+  const activeCampaign = campaigns[0];
 
   const handleLogout = () => base44.auth.logout("/login");
 
@@ -48,6 +58,16 @@ export default function MobileNav() {
             </Link>
           );
         })}
+        {/* Camera button — center highlight */}
+        <button
+          onClick={() => setShowCamera(true)}
+          className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] text-accent font-semibold"
+        >
+          <div className="bg-accent rounded-full p-1.5 -mt-1">
+            <Camera className="w-4 h-4 text-accent-foreground" />
+          </div>
+          <span>Scan</span>
+        </button>
         {/* More button */}
         <button
           onClick={() => setDrawerOpen(true)}
@@ -57,6 +77,15 @@ export default function MobileNav() {
           <span>More</span>
         </button>
       </nav>
+
+      {/* Camera capture modal */}
+      {showCamera && activeCampaign && (
+        <CameraCapture
+          campaignId={activeCampaign.id}
+          onClose={() => setShowCamera(false)}
+          onSuccess={() => setShowCamera(false)}
+        />
+      )}
 
       {/* Slide-up Drawer for extra nav items */}
       {drawerOpen && (

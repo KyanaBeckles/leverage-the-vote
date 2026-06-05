@@ -1,0 +1,63 @@
+{
+  "name": "Document",
+  "type": "object",
+  "properties": {
+    "campaign_id": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "Uploaded image URL"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "raw_signature_sheet",
+        "certified_signature_sheet",
+        "nomination_paper_receipt",
+        "other"
+      ],
+      "default": "other",
+      "description": "AI-classified or admin-corrected document type"
+    },
+    "ai_confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "AI classification confidence"
+    },
+    "ai_notes": {
+      "type": "string",
+      "description": "AI reasoning notes"
+    },
+    "uploaded_by_name": {
+      "type": "string"
+    },
+    "uploaded_by_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending_review",
+        "reviewed",
+        "linked"
+      ],
+      "default": "pending_review"
+    },
+    "linked_petition_sheet_id": {
+      "type": "string",
+      "description": "Optional link to a petition sheet record"
+    },
+    "admin_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "campaign_id",
+    "file_url"
+  ]
+}
