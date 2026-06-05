@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { 
   LayoutDashboard, ClipboardList, Users, FileCheck, Map, Calendar, 
   Upload, Settings, ChevronLeft, ChevronRight, Vote, BarChart3,
-  LogOut, HelpCircle, FolderOpen
+  LogOut, HelpCircle, FolderOpen, PenLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +18,7 @@ const navItems = [
   { path: "/voters", icon: Map, label: "Voter File" },
   { path: "/calendar", icon: Calendar, label: "Calendar" },
   { path: "/documents", icon: FolderOpen, label: "Documents" },
+  { path: "/signatures", icon: PenLine, label: "Signatures" },
   { path: "/import", icon: Upload, label: "Data Import" },
 ];
 

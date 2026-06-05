@@ -165,8 +165,8 @@ export default function Documents() {
                   }}
                 />
 
-                {/* AI Process button — only for signature sheets not yet linked */}
-                {doc.category === "raw_signature_sheet" && doc.status !== "linked" && (
+                {/* AI Process button — for raw or certified signature sheets not yet linked */}
+                {(doc.category === "raw_signature_sheet" || doc.category === "certified_signature_sheet") && doc.status !== "linked" && (
                   <button
                     onClick={() => handleProcess(doc)}
                     disabled={processingId === doc.id}
