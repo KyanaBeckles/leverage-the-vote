@@ -36,9 +36,17 @@
       "type": "string",
       "format": "date"
     },
+    "scan_url_front": {
+      "type": "string",
+      "description": "URL of front scan (7 signature lines)"
+    },
+    "scan_url_back": {
+      "type": "string",
+      "description": "URL of back scan (17 signature lines)"
+    },
     "scan_url": {
       "type": "string",
-      "description": "URL of scanned petition image"
+      "description": "Legacy single scan URL"
     },
     "raw_signature_count": {
       "type": "number",
@@ -57,6 +65,14 @@
     },
     "notes": {
       "type": "string"
+    },
+    "ai_processed": {
+      "type": "boolean",
+      "default": false
+    },
+    "ai_extracted_data": {
+      "type": "string",
+      "description": "JSON string of AI-extracted signer data"
     }
   },
   "required": [

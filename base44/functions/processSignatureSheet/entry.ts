@@ -1,0 +1,158 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+
+Deno.serve(async (req) => {
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { document_id, campaign_id } = await req.json();
+    if (!document_id || !campaign_id) {
+      return Response.json({ error: 'document_id and campaign_id are required' }, { status: 400 });
+    }
+
+    // Fetch the document
+    const docs = await base44.entities.Document.filter({ campaign_id });
+    const doc = docs.find(d => d.id === document_id);
+    if (!doc) return Response.json({ error: 'Document not found' }, { status: 404 });
+
+    // Use AI vision to extract signature data from the image
+    const prompt = `You are analyzing a petition signature sheet image for a political campaign.
+
+This petition sheet has either a FRONT side (7 signature lines) or a BACK side (17 signature lines).
+
+Please extract ALL the information you can see, including:
+1. Whether this appears to be the FRONT (7 lines) or BACK (17 lines) of the sheet
+2. A sheet/petition number if visible anywhere on the page
+3. For each signature line that has been filled in, extract:
+   - Line number
+   - Signer name (printed or cursive)
+   - Address
+   - City/Town
+   - Date signed
+4. Total count of filled signature lines you can see
+5. Any collector/circulator name if shown
+
+Return your response as JSON with this exact structure:
+{
+  "side": "front" or "back",
+  "sheet_number": "string or null",
+  "circulator_name": "string or null",
+  "total_signatures_visible": number,
+  "signers": [
+    {
+      "line_number": number,
+      "name": "string",
+      "address": "string or null",
+      "city": "string or null",
+      "date_signed": "string or null"
+    }
+  ],
+  "notes": "any additional observations"
+}`;
+
+    const result = await base44.integrations.Core.InvokeLLM({
+      prompt,
+      file_urls: [doc.file_url],
+      response_json_schema: {
+        type: "object",
+        properties: {
+          side: { type: "string" },
+          sheet_number: { type: "string" },
+          circulator_name: { type: "string" },
+          total_signatures_visible: { type: "number" },
+          signers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                line_number: { type: "number" },
+                name: { type: "string" },
+                address: { type: "string" },
+                city: { type: "string" },
+                date_signed: { type: "string" }
+              }
+            }
+          },
+          notes: { type: "string" }
+        }
+      }
+    });
+
+    const extracted = result;
+    const sheetNumber = extracted.sheet_number || `DOC-${document_id.slice(-6)}`;
+    const sigCount = extracted.total_signatures_visible || extracted.signers?.length || 0;
+    const side = extracted.side || "front";
+
+    // Find or create a PetitionSheet record
+    const existingSheets = await base44.entities.PetitionSheet.filter({ campaign_id, sheet_number: sheetNumber });
+    let sheetRecord;
+
+    if (existingSheets.length > 0) {
+      // Update existing sheet — add the scan URL for this side and update count
+      sheetRecord = existingSheets[0];
+      const currentCount = Number(sheetRecord.raw_signature_count) || 0;
+      const updateData = {
+        raw_signature_count: currentCount + sigCount,
+        ai_processed: true,
+        ai_extracted_data: JSON.stringify(extracted),
+        pipeline_status: "scanned",
+      };
+      if (side === "front") updateData.scan_url_front = doc.file_url;
+      else updateData.scan_url_back = doc.file_url;
+
+      sheetRecord = await base44.entities.PetitionSheet.update(sheetRecord.id, updateData);
+    } else {
+      // Create a new sheet
+      const createData = {
+        campaign_id,
+        sheet_number: sheetNumber,
+        pipeline_status: "scanned",
+        raw_signature_count: sigCount,
+        ai_processed: true,
+        ai_extracted_data: JSON.stringify(extracted),
+        issued_date: new Date().toISOString().split("T")[0],
+        notes: extracted.notes || "",
+      };
+      if (side === "front") createData.scan_url_front = doc.file_url;
+      else createData.scan_url_back = doc.file_url;
+      if (extracted.circulator_name) createData.assigned_to_name = extracted.circulator_name;
+
+      sheetRecord = await base44.entities.PetitionSheet.create(createData);
+    }
+
+    // Create Signature records for each signer
+    const signaturePromises = (extracted.signers || []).map(signer =>
+      base44.entities.Signature.create({
+        campaign_id,
+        petition_sheet_id: sheetRecord.id,
+        line_number: signer.line_number,
+        signer_name: signer.name,
+        signer_address: signer.address || "",
+        signer_city: signer.city || "",
+        date_signed: signer.date_signed || null,
+        verification_status: "pending",
+        entered_by_member_id: user.id,
+      })
+    );
+    await Promise.all(signaturePromises);
+
+    // Mark document as linked
+    await base44.entities.Document.update(document_id, {
+      status: "linked",
+      linked_petition_sheet_id: sheetRecord.id,
+    });
+
+    return Response.json({
+      success: true,
+      sheet_id: sheetRecord.id,
+      sheet_number: sheetNumber,
+      side,
+      signatures_extracted: sigCount,
+      signers: extracted.signers || [],
+    });
+
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+});

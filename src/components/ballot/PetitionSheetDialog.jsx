@@ -16,6 +16,7 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
     sheet_number: "", pipeline_status: "blank_issued", assigned_to_name: "",
     issued_date: "", returned_date: "", town_clerk: "", notes: "",
     raw_signature_count: 0, certified_count: 0, rejected_count: 0,
+    scan_url_front: "", scan_url_back: "",
   });
 
   useEffect(() => {
@@ -31,6 +32,8 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
         raw_signature_count: sheet.raw_signature_count || 0,
         certified_count: sheet.certified_count || 0,
         rejected_count: sheet.rejected_count || 0,
+        scan_url_front: sheet.scan_url_front || "",
+        scan_url_back: sheet.scan_url_back || "",
       });
     } else {
       setForm({
@@ -129,6 +132,27 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
               <Input type="number" value={form.rejected_count} onChange={(e) => setForm({...form, rejected_count: e.target.value})} />
             </div>
           </div>
+          {/* Front/Back scan thumbnails */}
+          {(form.scan_url_front || form.scan_url_back) && (
+            <div className="grid grid-cols-2 gap-3">
+              {form.scan_url_front && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Front (7 lines)</Label>
+                  <a href={form.scan_url_front} target="_blank" rel="noreferrer">
+                    <img src={form.scan_url_front} alt="Front scan" className="w-full h-24 object-cover rounded-md border" />
+                  </a>
+                </div>
+              )}
+              {form.scan_url_back && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Back (17 lines)</Label>
+                  <a href={form.scan_url_back} target="_blank" rel="noreferrer">
+                    <img src={form.scan_url_back} alt="Back scan" className="w-full h-24 object-cover rounded-md border" />
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs">Notes</Label>
             <Textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} rows={2} />
