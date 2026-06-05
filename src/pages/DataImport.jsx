@@ -30,9 +30,12 @@ const VOTER_FIELDS = [
 // Extract file ID from a Google Drive share link
 function extractDriveFileId(url) {
   const patterns = [
-    /\/file\/d\/([a-zA-Z0-9_-]+)/,
-    /[?&]id=([a-zA-Z0-9_-]+)/,
-    /\/open\?id=([a-zA-Z0-9_-]+)/,
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,          // Drive file
+    /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/,  // Google Sheets
+    /\/document\/d\/([a-zA-Z0-9_-]+)/,      // Google Docs
+    /\/presentation\/d\/([a-zA-Z0-9_-]+)/,  // Google Slides
+    /[?&]id=([a-zA-Z0-9_-]+)/,              // ?id= param
+    /\/open\?id=([a-zA-Z0-9_-]+)/,          // open?id=
   ];
   for (const p of patterns) {
     const m = url.match(p);

@@ -25,19 +25,33 @@ Deno.serve(async (req) => {
 
     // Download a file and return its content as base64
     if (action === 'download') {
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      // First get file metadata to check mimeType
+      const metaRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name`,
         { headers }
       );
+      const meta = await metaRes.json();
+
+      let downloadUrl;
+      let contentType;
+
+      // Google Workspace files need export instead of direct download
+      if (meta.mimeType === 'application/vnd.google-apps.spreadsheet') {
+        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/csv`;
+        contentType = 'text/csv';
+      } else {
+        downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+        contentType = meta.mimeType || 'application/octet-stream';
+      }
+
+      const res = await fetch(downloadUrl, { headers });
       if (!res.ok) return Response.json({ error: 'Failed to download file' }, { status: 400 });
       const buffer = await res.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      // Convert to base64
       let binary = '';
       for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
       const base64 = btoa(binary);
-      const contentType = res.headers.get('content-type') || 'application/octet-stream';
-      return Response.json({ base64, contentType });
+      return Response.json({ base64, contentType, fileName: meta.name });
     }
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });
