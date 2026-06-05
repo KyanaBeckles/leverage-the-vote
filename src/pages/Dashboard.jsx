@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import CampaignSetupDialog from "../components/dashboard/CampaignSetupDialog";
+import SignatureMap from "../components/dashboard/SignatureMap";
 
 export default function Dashboard() {
   const [showSetup, setShowSetup] = useState(false);
@@ -111,6 +112,8 @@ export default function Dashboard() {
             <SignatureTracker campaign={campaign} signatures={signatures} />
           </div>
         </div>
+
+        <SignatureMap signatures={signatures} />
       </div>
 
       <CampaignSetupDialog 
