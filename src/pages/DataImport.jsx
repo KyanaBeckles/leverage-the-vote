@@ -12,19 +12,60 @@ import { Input } from "@/components/ui/input";
 import GoogleDrivePicker from "@/components/import/GoogleDrivePicker";
 
 const VOTER_FIELDS = [
-  { key: "first_name", label: "First Name" },
-  { key: "last_name", label: "Last Name" },
-  { key: "full_name", label: "Full Name" },
-  { key: "address", label: "Address" },
-  { key: "city", label: "City" },
-  { key: "state", label: "State" },
-  { key: "zip", label: "ZIP Code" },
-  { key: "ward", label: "Ward" },
-  { key: "precinct", label: "Precinct" },
-  { key: "party_affiliation", label: "Party Affiliation" },
-  { key: "phone", label: "Phone" },
-  { key: "email", label: "Email" },
-  { key: "skip", label: "— Skip this column —" },
+  { key: "first_name",           label: "First Name" },
+  { key: "last_name",            label: "Last Name" },
+  { key: "full_name",            label: "Full Name" },
+  { key: "address",              label: "Street Address" },
+  { key: "city",                 label: "City/Town" },
+  { key: "state",                label: "State" },
+  { key: "zip",                  label: "ZIP Code" },
+  { key: "ward",                 label: "Ward" },
+  { key: "precinct",             label: "Precinct" },
+  { key: "party_affiliation",    label: "Party Affiliation" },
+  { key: "voter_status",         label: "Voter Status" },
+  { key: "phone",                label: "Phone" },
+  { key: "email",                label: "Email" },
+  { key: "notes",                label: "Notes / Other" },
+  { key: "skip",                 label: "— Skip this column —" },
+];
+
+// Maps known column name patterns from the MA Special Request Voter Extract
+// to VOTER_FIELDS keys. Checked against the lowercased, stripped column header.
+const COLUMN_AUTO_MAP = [
+  { keys: ["firstname","first_name","fname"],                       field: "first_name" },
+  { keys: ["lastname","last_name","lname","surname"],               field: "last_name" },
+  { keys: ["fullname","full_name","name"],                          field: "full_name" },
+  { keys: ["middlename","middle_name","mname"],                     field: "skip" },
+  { keys: ["title","suffix"],                                       field: "skip" },
+  { keys: ["streetno","streetnum","streetaddressno","resnumber",
+            "resaddressno","resstreetno"],                           field: "skip" },
+  { keys: ["streetnosuffix","resstreetsuffix"],                     field: "skip" },
+  { keys: ["streetname","resstreetname","residentialaddressstreetname",
+            "residentialaddress-streetname"],                       field: "address" },
+  { keys: ["aptno","apt","apartment","resaptno","residentialaddressapt"],field: "skip" },
+  { keys: ["zipcode","zip","reszip","residentialaddresszipcode",
+            "residentialzipcode","zip_code"],                       field: "zip" },
+  { keys: ["mailingstreet","mailingaddress","mailingstreetaddress"], field: "skip" },
+  { keys: ["mailingapt"],                                           field: "skip" },
+  { keys: ["mailingcity","mailingcitytown"],                        field: "skip" },
+  { keys: ["mailingstate"],                                         field: "skip" },
+  { keys: ["mailingzip","mailingzipcode"],                          field: "skip" },
+  { keys: ["citycode","citytowncode"],                              field: "skip" },
+  { keys: ["cityname","citytownname","city","town","municipality"],  field: "city" },
+  { keys: ["county","countyname"],                                  field: "skip" },
+  { keys: ["voterid","voter_id","voteridentification"],             field: "skip" },
+  { keys: ["party","partyaffiliation","partyaff","partycode"],      field: "party_affiliation" },
+  { keys: ["gender","sex"],                                         field: "skip" },
+  { keys: ["dob","dateofbirth","birthdate","birthdate"],            field: "skip" },
+  { keys: ["regdate","registrationdate","registrationdt"],          field: "skip" },
+  { keys: ["ward","wardnumber","wardno"],                           field: "ward" },
+  { keys: ["precinct","precinctno","precinctnumber"],               field: "precinct" },
+  { keys: ["congressionaldistrict","congressional"],                field: "skip" },
+  { keys: ["sendistrict","senatorialdistrict","senatorial"],        field: "skip" },
+  { keys: ["repdistrict","staterepresentativedistrict","representative"], field: "skip" },
+  { keys: ["voterstatus","status","voteractivity"],                 field: "voter_status" },
+  { keys: ["phone","telephone","phonenumber"],                      field: "phone" },
+  { keys: ["email","emailaddress"],                                 field: "email" },
 ];
 
 // Extract file ID from a Google Drive share link
@@ -110,6 +151,7 @@ export default function DataImport() {
   const [loadingDrive, setLoadingDrive] = useState(false);
   const [zipFiles, setZipFiles] = useState([]); // extracted CSVs from a zip
   const [driveFolderOverride, setDriveFolderOverride] = useState(null);
+  const [fileDelimiter, setFileDelimiter] = useState(",");
   const fileRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -121,31 +163,33 @@ export default function DataImport() {
 
   const parseCSV = (text) => {
     const lines = text.split("\n").filter(l => l.trim());
-    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    // Auto-detect delimiter: pipe-delimited if first line has more pipes than commas
+    const firstLine = lines[0];
+    const delimiter = (firstLine.split("|").length - 1) >= (firstLine.split(",").length - 1) ? "|" : ",";
+    const splitLine = (line) => line.split(delimiter).map(v => v.trim().replace(/^"|"$/g, ""));
+    const headers = splitLine(firstLine);
     const rows = lines.slice(1, 6).map(line => {
-      const values = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+      const values = splitLine(line);
       const row = {};
       headers.forEach((h, i) => { row[h] = values[i] || ""; });
       return row;
     });
-    return { headers, rows, totalRows: lines.length - 1 };
+    return { headers, rows, totalRows: lines.length - 1, delimiter };
   };
 
   const loadCSVText = (text, name) => {
     setFile({ name, text });
     setImportResult(null);
     setZipFiles([]);
-    const { headers, rows } = parseCSV(text);
+    const { headers, rows, delimiter } = parseCSV(text);
     setCsvHeaders(headers);
     setCsvPreview(rows);
+    setFileDelimiter(delimiter);
     const autoMap = {};
     headers.forEach(h => {
-      const lower = h.toLowerCase().replace(/[_\s-]/g, "");
-      const match = VOTER_FIELDS.find(f => {
-        const fLower = f.key.replace(/_/g, "");
-        return lower.includes(fLower) || fLower.includes(lower);
-      });
-      autoMap[h] = match ? match.key : "skip";
+      const lower = h.toLowerCase().replace(/[\s_\-/.]/g, "");
+      const entry = COLUMN_AUTO_MAP.find(e => e.keys.some(k => k === lower || lower.includes(k) || k.includes(lower)));
+      autoMap[h] = entry ? entry.field : "skip";
     });
     setMapping(autoMap);
   };
@@ -244,7 +288,8 @@ export default function DataImport() {
     setProgress(0);
 
     const lines = file.text.split("\n").filter(l => l.trim());
-    const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+    const splitLine = (line) => line.split(fileDelimiter).map(v => v.trim().replace(/^"|"$/g, ""));
+    const headers = splitLine(lines[0]);
     const dataLines = lines.slice(1);
     let imported = 0, failed = 0;
     const batchSize = 25;
@@ -252,11 +297,18 @@ export default function DataImport() {
     for (let i = 0; i < dataLines.length; i += batchSize) {
       const batch = dataLines.slice(i, i + batchSize);
       const records = batch.map(line => {
-        const values = line.split(",").map(v => v.trim().replace(/^"|"$/g, ""));
+        const values = splitLine(line);
         const record = { campaign_id: campaign.id };
         headers.forEach((h, idx) => {
           const field = mapping[h];
-          if (field && field !== "skip") record[field] = values[idx] || "";
+          if (!field || field === "skip") return;
+          let val = values[idx] || "";
+          // Translate single-char voter status codes
+          if (field === "voter_status") {
+            if (val === "A") val = "active";
+            else if (val === "I") val = "inactive";
+          }
+          record[field] = val;
         });
         return record;
       }).filter(r => r.last_name || r.full_name);
