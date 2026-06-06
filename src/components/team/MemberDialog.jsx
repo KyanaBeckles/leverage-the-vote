@@ -6,18 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trash2, HelpCircle } from "lucide-react";
+import { Trash2, HelpCircle, Mail, CheckCircle2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 export default function MemberDialog({ open, onOpenChange, member, campaignId }) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState(null); // null | "sending" | "sent" | "error"
+
+  const handleSendInvite = async () => {
+    if (!form.email) return;
+    setInviteStatus("sending");
+    try {
+      await base44.users.inviteUser(form.email.trim().toLowerCase(), "user");
+      setInviteStatus("sent");
+    } catch (err) {
+      setInviteStatus("error");
+    }
+  };
   const [form, setForm] = useState({
     name: "", email: "", phone: "", status_tag: "volunteer",
     access_level: "contributor", org_node: "",
   });
 
   useEffect(() => {
+    setInviteStatus(null);
     if (member) {
       setForm({
         name: member.name || "", email: member.email || "", phone: member.phone || "",
@@ -108,6 +121,24 @@ export default function MemberDialog({ open, onOpenChange, member, campaignId })
             <Label className="text-xs flex items-center gap-1.5">Org Chart Node <FieldHint text="Their role on the org chart. Tasks/shifts are assigned to the node, not the person." /></Label>
             <Input value={form.org_node} onChange={(e) => setForm({...form, org_node: e.target.value})} placeholder="e.g. Field Director, Boston Organizer" />
           </div>
+          {/* Send Invite row */}
+          {form.email && (
+            <div className="flex items-center justify-between rounded-lg border border-dashed px-3 py-2.5 bg-muted/30">
+              <div>
+                <p className="text-xs font-medium">Platform Invite</p>
+                <p className="text-[11px] text-muted-foreground">Send login invite to {form.email}</p>
+              </div>
+              {inviteStatus === "sent" ? (
+                <span className="flex items-center gap-1 text-xs text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /> Sent!</span>
+              ) : (
+                <Button size="sm" variant="outline" onClick={handleSendInvite} disabled={inviteStatus === "sending"} className="h-7 text-xs">
+                  <Mail className="w-3 h-3 mr-1" />
+                  {inviteStatus === "sending" ? "Sending…" : inviteStatus === "error" ? "Retry" : "Send Invite"}
+                </Button>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-between mt-2">
             {member && (
               <Button variant="ghost" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive">
