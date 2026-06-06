@@ -1,5 +1,6 @@
 import React from "react";
 import { Users, FileCheck, ClipboardList, MapPin } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const stats = [
   {
@@ -9,6 +10,7 @@ const stats = [
     iconBg: "bg-blue-100",
     iconColor: "text-blue-600",
     border: "border-l-blue-500",
+    href: "/voters",
   },
   {
     label: "Team Members",
@@ -17,6 +19,7 @@ const stats = [
     iconBg: "bg-emerald-100",
     iconColor: "text-emerald-600",
     border: "border-l-emerald-500",
+    href: "/team",
   },
   {
     label: "Active Tasks",
@@ -25,6 +28,7 @@ const stats = [
     iconBg: "bg-amber-100",
     iconColor: "text-amber-600",
     border: "border-l-amber-500",
+    href: "/tasks",
   },
   {
     label: "Petition Sheets",
@@ -33,6 +37,7 @@ const stats = [
     iconBg: "bg-red-100",
     iconColor: "text-red-600",
     border: "border-l-red-400",
+    href: "/ballot-engine",
   },
 ];
 
@@ -42,9 +47,10 @@ export default function QuickStats({ voterCount, memberCount, taskCount, sheetCo
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((s) => (
-        <div
+        <Link
           key={s.label}
-          className={`bg-card rounded-xl border border-border border-l-4 ${s.border} p-5 hover:shadow-md transition-shadow group`}
+          to={s.href}
+          className={`bg-card rounded-xl border border-border border-l-4 ${s.border} p-5 hover:shadow-md hover:scale-[1.02] transition-all group cursor-pointer block`}
         >
           <div className="flex items-start justify-between mb-4">
             <div className={`${s.iconBg} rounded-lg p-2.5`}>
@@ -57,7 +63,7 @@ export default function QuickStats({ voterCount, memberCount, taskCount, sheetCo
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-1">
             {s.label}
           </p>
-        </div>
+        </Link>
       ))}
     </div>
   );
