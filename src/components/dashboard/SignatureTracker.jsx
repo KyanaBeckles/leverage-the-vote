@@ -1,10 +1,10 @@
 import React from "react";
 import { Target, TrendingUp, Award } from "lucide-react";
 
-export default function SignatureTracker({ campaign, signatures }) {
+export default function SignatureTracker({ campaign, sheets }) {
   const threshold = campaign?.signature_threshold || 0;
-  const certified = signatures?.filter((s) => s.verification_status === "certified").length || 0;
-  const raw = signatures?.length || 0;
+  const raw = (sheets || []).reduce((sum, s) => sum + (s.raw_signature_count || 0), 0);
+  const certified = (sheets || []).reduce((sum, s) => sum + (s.certified_count || 0), 0);
   const certifiedPct = threshold > 0 ? Math.min((certified / threshold) * 100, 100) : 0;
   const rawPct = threshold > 0 ? Math.min((raw / threshold) * 100, 100) : 0;
   const certRate = raw > 0 ? ((certified / raw) * 100).toFixed(0) : 0;

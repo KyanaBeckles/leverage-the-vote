@@ -168,7 +168,7 @@ export default function Dashboard() {
                   memberCount={members.length}
                   sheetCount={sheets.length}
                 />
-                <SignatureTracker campaign={campaign} signatures={signatures} />
+                <SignatureTracker campaign={campaign} sheets={sheets} />
               </div>
             </section>
           </div>
