@@ -38,11 +38,13 @@ export default function CalendarPage() {
   const startPadding = monthStart.getDay();
   const paddedDays = [...Array(startPadding).fill(null), ...days];
 
-  const eventsOnDay = (day) => events.filter(e => e.start_date && isSameDay(new Date(e.start_date), day));
+  // Parse "YYYY-MM-DDTHH:MM:SS" as local time (replace T with space for consistent cross-browser parsing)
+  const parseLocal = (s) => new Date(s.replace("T", " "));
+  const eventsOnDay = (day) => events.filter(e => e.start_date && isSameDay(parseLocal(e.start_date), day));
 
   const selectedEvents = selectedDate 
     ? eventsOnDay(selectedDate) 
-    : events.sort((a, b) => new Date(a.start_date) - new Date(b.start_date)).slice(0, 10);
+    : [...events].sort((a, b) => parseLocal(a.start_date) - parseLocal(b.start_date)).slice(0, 10);
 
   return (
     <div className="min-h-screen p-6 lg:p-8 max-w-[1400px]">
@@ -136,7 +138,7 @@ export default function CalendarPage() {
                       <div className="flex items-center gap-2 mt-1">
                         <Clock className="w-3 h-3 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground">
-                          {ev.start_date ? format(new Date(ev.start_date), "MMM d, h:mm a") : "—"}
+                          {ev.start_date ? format(parseLocal(ev.start_date), "MMM d, h:mm a") : "—"}
                         </span>
                       </div>
                       {ev.location && (

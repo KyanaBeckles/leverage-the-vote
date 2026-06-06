@@ -34,10 +34,17 @@ export default function EventDialog({ open, onOpenChange, event, campaignId }) {
 
   const handleSave = async () => {
     setSaving(true);
+    // Ensure datetime strings include seconds so parsing is consistent across browsers
+    const normalizeDate = (d) => d ? (d.length === 16 ? d + ":00" : d) : d;
+    const payload = {
+      ...form,
+      start_date: normalizeDate(form.start_date),
+      end_date: normalizeDate(form.end_date),
+    };
     if (event) {
-      await base44.entities.CalendarEvent.update(event.id, form);
+      await base44.entities.CalendarEvent.update(event.id, payload);
     } else {
-      await base44.entities.CalendarEvent.create({ ...form, campaign_id: campaignId });
+      await base44.entities.CalendarEvent.create({ ...payload, campaign_id: campaignId });
     }
     queryClient.invalidateQueries({ queryKey: ["events"] });
     setSaving(false);
