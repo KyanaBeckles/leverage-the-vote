@@ -5,8 +5,12 @@ import { Folder, FileText, ChevronRight, ChevronLeft, Loader2, HardDrive } from 
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
-export default function GoogleDrivePicker({ onFileSelected, onClose }) {
-  const [stack, setStack] = useState([{ id: null, name: "My Drive" }]);
+export default function GoogleDrivePicker({ onFileSelected, onClose, initialFolderId }) {
+  const [stack, setStack] = useState(
+    initialFolderId
+      ? [{ id: null, name: "My Drive" }, { id: initialFolderId, name: "Shared Folder" }]
+      : [{ id: null, name: "My Drive" }]
+  );
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
 

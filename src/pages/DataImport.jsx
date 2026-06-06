@@ -44,6 +44,11 @@ function extractDriveFileId(url) {
   return null;
 }
 
+function extractDriveFolderId(url) {
+  const m = url.match(/\/drive\/folders\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
 // Unzip a base64-encoded zip and return first CSV text found
 async function unzipFirstCSV(base64) {
   // Convert base64 → Uint8Array
@@ -104,6 +109,7 @@ export default function DataImport() {
   const [progress, setProgress] = useState(0);
   const [loadingDrive, setLoadingDrive] = useState(false);
   const [zipFiles, setZipFiles] = useState([]); // extracted CSVs from a zip
+  const [driveFolderOverride, setDriveFolderOverride] = useState(null);
   const fileRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -195,8 +201,19 @@ export default function DataImport() {
   };
 
   const handleDriveLinkLoad = async () => {
+    // If it's a folder link, open the picker at that folder
+    const folderId = extractDriveFolderId(driveLink);
+    if (folderId) {
+      setSource("drive_browse");
+      setShowDrivePicker(true);
+      // Pre-navigate picker to that folder by passing it as initial stack
+      setDriveFolderOverride(folderId);
+      setDriveLink("");
+      return;
+    }
+
     const fileId = extractDriveFileId(driveLink);
-    if (!fileId) { alert("Couldn't find a file ID in that link. Make sure it's a valid Google Drive share link."); return; }
+    if (!fileId) { alert("Couldn't find a file ID in that link. Make sure it's a valid Google Drive share link (file or folder)."); return; }
     setLoadingDrive(true);
     const res = await base44.functions.invoke("googleDriveFiles", { action: "download", fileId });
     const { base64, contentType } = res.data;
@@ -335,7 +352,11 @@ export default function DataImport() {
             </div>
           ) : source === "drive_browse" ? (
             <div>
-              <GoogleDrivePicker onFileSelected={handleDriveFilePicked} onClose={() => setShowDrivePicker(false)} />
+              <GoogleDrivePicker
+                onFileSelected={handleDriveFilePicked}
+                onClose={() => { setShowDrivePicker(false); setDriveFolderOverride(null); }}
+                initialFolderId={driveFolderOverride}
+              />
             </div>
           ) : (
             <div className="space-y-3">
