@@ -12,6 +12,7 @@ import { Trash2 } from "lucide-react";
 export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaignId }) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [quantity, setQuantity] = useState(1);
   const [form, setForm] = useState({
     sheet_number: "", pipeline_status: "blank_issued", assigned_to_name: "",
     issued_date: "", returned_date: "", town_clerk: "", notes: "",
@@ -41,6 +42,7 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
         issued_date: new Date().toISOString().split("T")[0], returned_date: "",
         town_clerk: "", notes: "", raw_signature_count: 0, certified_count: 0, rejected_count: 0,
       });
+      setQuantity(1);
     }
   }, [sheet, open]);
 
@@ -55,7 +57,17 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
     if (sheet) {
       await base44.entities.PetitionSheet.update(sheet.id, data);
     } else {
-      await base44.entities.PetitionSheet.create({ ...data, campaign_id: campaignId });
+      // Fetch existing sheets to determine next sheet number
+      const existing = await base44.entities.PetitionSheet.filter({ campaign_id: campaignId });
+      const maxNum = existing.reduce((max, s) => {
+        const n = parseInt(s.sheet_number, 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const creates = [];
+      for (let i = 0; i < quantity; i++) {
+        creates.push({ ...data, campaign_id: campaignId, sheet_number: String(maxNum + i + 1) });
+      }
+      await base44.entities.PetitionSheet.bulkCreate(creates);
     }
     queryClient.invalidateQueries({ queryKey: ["sheets"] });
     setSaving(false);
@@ -79,8 +91,19 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
         <div className="grid gap-4 mt-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Sheet Number</Label>
-              <Input value={form.sheet_number} onChange={(e) => setForm({...form, sheet_number: e.target.value})} placeholder="e.g. 001" />
+              {sheet ? (
+                <>
+                  <Label className="text-xs">Sheet Number</Label>
+                  <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/50 px-3 text-sm font-medium">
+                    #{form.sheet_number}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Label className="text-xs">Quantity</Label>
+                  <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} />
+                </>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Status</Label>
@@ -165,7 +188,7 @@ export default function PetitionSheetDialog({ open, onOpenChange, sheet, campaig
             )}
             <div className="flex gap-2 ml-auto">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button onClick={handleSave} disabled={saving || !form.sheet_number} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+              <Button onClick={handleSave} disabled={saving} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                 {saving ? "Saving..." : sheet ? "Update" : "Issue Sheet"}
               </Button>
             </div>
