@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle, AlertTriangle, Clock, Search, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Clock, Search, FileText, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 const STATUS_CONFIG = {
   pending:   { label: "Pending",   icon: Clock,         color: "bg-muted text-muted-foreground" },
@@ -18,6 +18,13 @@ const STATUS_CONFIG = {
 export default function Signatures() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  };
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns"],
@@ -45,7 +52,7 @@ export default function Signatures() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return signatures.filter(sig => {
+    let result = signatures.filter(sig => {
       const matchesSearch =
         !q ||
         sig.signer_name?.toLowerCase().includes(q) ||
@@ -54,7 +61,24 @@ export default function Signatures() {
       const matchesStatus = statusFilter === "all" || sig.verification_status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [signatures, search, statusFilter]);
+
+    if (sortCol) {
+      result = [...result].sort((a, b) => {
+        let aVal, bVal;
+        if (sortCol === "sheet") {
+          aVal = sheetMap[a.petition_sheet_id]?.sheet_number || "";
+          bVal = sheetMap[b.petition_sheet_id]?.sheet_number || "";
+        } else {
+          aVal = a[sortCol] || "";
+          bVal = b[sortCol] || "";
+        }
+        return sortDir === "asc"
+          ? String(aVal).localeCompare(String(bVal))
+          : String(bVal).localeCompare(String(aVal));
+      });
+    }
+    return result;
+  }, [signatures, search, statusFilter, sortCol, sortDir, sheetMap]);
 
   // Summary counts
   const counts = useMemo(() => {
@@ -124,12 +148,25 @@ export default function Signatures() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Name</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Address</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden lg:table-cell">City</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Date Signed</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Sheet</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+                {[
+                  { key: "signer_name", label: "Name", cls: "" },
+                  { key: "signer_address", label: "Address", cls: "hidden md:table-cell" },
+                  { key: "signer_city", label: "City", cls: "hidden lg:table-cell" },
+                  { key: "date_signed", label: "Date Signed", cls: "hidden lg:table-cell" },
+                  { key: "sheet", label: "Sheet", cls: "hidden md:table-cell" },
+                  { key: "verification_status", label: "Status", cls: "" },
+                ].map(({ key, label, cls }) => {
+                  const active = sortCol === key;
+                  const Icon = active ? (sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
+                  return (
+                    <th key={key} className={`text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer select-none hover:text-foreground ${cls}`} onClick={() => handleSort(key)}>
+                      <span className="inline-flex items-center gap-1">
+                        {label}
+                        <Icon className={`w-3 h-3 ${active ? "text-primary" : "opacity-40"}`} />
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y">
