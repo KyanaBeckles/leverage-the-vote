@@ -165,7 +165,10 @@ export default function DataImport() {
     const lines = text.split("\n").filter(l => l.trim());
     // Auto-detect delimiter: pipe-delimited if first line has more pipes than commas
     const firstLine = lines[0];
-    const delimiter = (firstLine.split("|").length - 1) >= (firstLine.split(",").length - 1) ? "|" : ",";
+    const pipes = firstLine.split("|").length - 1;
+    const commas = firstLine.split(",").length - 1;
+    const tabs = firstLine.split("\t").length - 1;
+    const delimiter = tabs >= pipes && tabs >= commas ? "\t" : pipes >= commas ? "|" : ",";
     const splitLine = (line) => line.split(delimiter).map(v => v.trim().replace(/^"|"$/g, ""));
     const headers = splitLine(firstLine);
     const rows = lines.slice(1, 6).map(line => {
@@ -218,7 +221,7 @@ export default function DataImport() {
     } else {
       const reader = new FileReader();
       reader.onload = (ev) => loadCSVText(ev.target.result, f.name);
-      reader.readAsText(f);
+      reader.readAsText(f, "latin1");
     }
   };
 
@@ -396,8 +399,8 @@ export default function DataImport() {
             <div className="text-center">
               <Upload className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
               <h3 className="text-lg font-display font-semibold mb-2">Upload Voter File</h3>
-              <p className="text-sm text-muted-foreground mb-4">Supports CSV files and ZIP archives from your state voter database</p>
-              <input type="file" ref={fileRef} accept=".csv,.zip" onChange={handleLocalFile} className="hidden" />
+              <p className="text-sm text-muted-foreground mb-4">Supports CSV, TXT, and ZIP files from your state voter database</p>
+              <input type="file" ref={fileRef} accept=".csv,.txt,.zip" onChange={handleLocalFile} className="hidden" />
               <Button onClick={() => fileRef.current?.click()} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Upload className="w-4 h-4 mr-1.5" /> Choose File
               </Button>
