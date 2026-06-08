@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import GoogleDrivePicker from "@/components/import/GoogleDrivePicker";
+import ClearVotersButton from "@/components/import/ClearVotersButton";
 
 const VOTER_FIELDS = [
   { key: "first_name",           label: "First Name" },
@@ -615,6 +616,11 @@ export default function DataImport() {
           )}
         </CardContent>
       </Card>
+
+      {/* Clear Voters */}
+      {!file && (
+        <ClearVotersButton campaignId={campaign?.id} onCleared={() => queryClient.invalidateQueries({ queryKey: ["voters"] })} />
+      )}
 
       {/* Column Mapping */}
       {csvHeaders.length > 0 && (
