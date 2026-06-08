@@ -20,10 +20,13 @@ export default function ClearVotersButton({ campaignId, onCleared }) {
   const handleClear = async () => {
     if (!campaignId) return;
     setClearing(true);
-    // Fetch all voter IDs for this campaign and delete in batches
-    const voters = await base44.entities.Voter.filter({ campaign_id: campaignId }, "-created_date", 1000);
-    for (const voter of voters) {
-      await base44.entities.Voter.delete(voter.id);
+    // Fetch and delete in pages of 50 until none remain
+    let remaining = true;
+    while (remaining) {
+      const voters = await base44.entities.Voter.filter({ campaign_id: campaignId }, "-created_date", 50);
+      if (voters.length === 0) { remaining = false; break; }
+      await Promise.all(voters.map(v => base44.entities.Voter.delete(v.id)));
+      if (voters.length < 50) remaining = false;
     }
     setClearing(false);
     onCleared?.();
