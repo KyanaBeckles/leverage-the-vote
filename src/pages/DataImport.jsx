@@ -417,51 +417,63 @@ export default function DataImport() {
     const lines = file.text.split("\n").filter(l => l.trim());
     const splitLine = (line) => line.split(fileDelimiter).map(v => v.trim().replace(/^"|"$/g, ""));
     const isMaFormat = file.maFormat;
-    // MA format has no header row — data starts at line 0
     const dataLines = isMaFormat ? lines : lines.slice(1);
     const headers = isMaFormat ? MA_VOTER_ACTIVITY_COLUMNS.map(c => c.label) : splitLine(lines[0]);
-    let imported = 0, failed = 0;
-    const batchSize = 25;
 
-    for (let i = 0; i < dataLines.length; i += batchSize) {
-      const batch = dataLines.slice(i, i + batchSize);
-      const records = batch.map(line => {
-        const values = splitLine(line);
-        const record = { campaign_id: campaign.id };
-        headers.forEach((h, idx) => {
-          const field = mapping[h];
-          if (!field || field === "skip") return;
-          let val = values[idx] || "";
-          if (field === "voter_status") {
-            if (val === "A") val = "active";
-            else if (val === "I") val = "inactive";
-          }
-          if (field === "party_affiliation") {
-            val = MA_PARTY_CODES[val.trim()] || val;
-          }
-          if (field === "city" && isMaFormat) {
-            val = MA_CITY_TOWN[parseInt(val)] || val;
-          }
-          // For MA format, build street address from number + name
-          if (isMaFormat && field === "address") {
-            const streetNum = values[7] || "";
-            const streetName = values[9] || "";
-            val = [streetNum, streetName].filter(Boolean).join(" ").trim();
-          }
-          record[field] = val;
-        });
-        return record;
-      }).filter(r => r.last_name || r.full_name);
+    const buildRecord = (line) => {
+      const values = splitLine(line);
+      const record = { campaign_id: campaign.id };
+      headers.forEach((h, idx) => {
+        const field = mapping[h];
+        if (!field || field === "skip") return;
+        let val = values[idx] || "";
+        if (field === "voter_status") {
+          if (val === "A") val = "active";
+          else if (val === "I") val = "inactive";
+        }
+        if (field === "party_affiliation") {
+          val = MA_PARTY_CODES[val.trim()] || val;
+        }
+        if (field === "city" && isMaFormat) {
+          val = MA_CITY_TOWN[parseInt(val)] || val;
+        }
+        if (isMaFormat && field === "address") {
+          const streetNum = values[7] || "";
+          const streetName = values[9] || "";
+          val = [streetNum, streetName].filter(Boolean).join(" ").trim();
+        }
+        record[field] = val;
+      });
+      return record;
+    };
 
-      if (records.length > 0) {
-        await base44.entities.Voter.bulkCreate(records);
-        imported += records.length;
-      }
-      failed += batch.length - records.length;
-      setProgress(Math.round(((i + batch.length) / dataLines.length) * 100));
+    // For MA Voter Activity files: deduplicate by Voter ID (col 2) — one row per voter
+    let uniqueLines = dataLines;
+    if (isMaFormat) {
+      const seen = new Set();
+      uniqueLines = dataLines.filter(line => {
+        const voterId = line.split("|")[2]?.trim();
+        if (!voterId || seen.has(voterId)) return false;
+        seen.add(voterId);
+        return true;
+      });
     }
 
-    setImportResult({ imported, failed, total: dataLines.length });
+    const allRecords = uniqueLines
+      .map(buildRecord)
+      .filter(r => r.last_name || r.full_name);
+
+    let imported = 0;
+    const batchSize = 100;
+
+    for (let i = 0; i < allRecords.length; i += batchSize) {
+      const batch = allRecords.slice(i, i + batchSize);
+      await base44.entities.Voter.bulkCreate(batch);
+      imported += batch.length;
+      setProgress(Math.round(((i + batch.length) / allRecords.length) * 100));
+    }
+
+    setImportResult({ imported, failed: uniqueLines.length - allRecords.length, total: uniqueLines.length });
     setImporting(false);
     queryClient.invalidateQueries({ queryKey: ["voters"] });
   };
