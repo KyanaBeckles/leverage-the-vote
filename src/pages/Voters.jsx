@@ -111,7 +111,7 @@ export default function Voters() {
               {filtered.slice(0, 100).map((voter) => (
                 <TableRow key={voter.id} className="cursor-pointer hover:bg-muted/50">
                   <TableCell className="font-medium text-sm">
-                    {voter.full_name || `${voter.first_name || ""} ${voter.last_name || ""}`}
+                    {voter.full_name || [voter.first_name, voter.last_name].filter(Boolean).join(" ") || "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {voter.address}{voter.city ? `, ${voter.city}` : ""}
