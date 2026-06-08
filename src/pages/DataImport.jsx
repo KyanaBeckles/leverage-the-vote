@@ -43,10 +43,10 @@ const MA_VOTER_ACTIVITY_COLUMNS = [
   { index: 9,  field: "address",          label: "Residential Street Name" },
   { index: 10, field: "skip",             label: "Residential Apartment Number" },
   { index: 11, field: "zip",              label: "Residential Zip Code" },
-  { index: 12, field: "city",             label: "City/Town Name" },
+  { index: 12, field: "skip",             label: "City/Town Name (raw)" },
   { index: 13, field: "party_affiliation",label: "Party Affiliation" },
   { index: 14, field: "skip",             label: "Party Voted" },
-  { index: 15, field: "skip",             label: "City/Town Code" },
+  { index: 15, field: "city",             label: "City/Town Code" },
   { index: 16, field: "ward",             label: "Ward Number" },
   { index: 17, field: "precinct",         label: "Precinct Number" },
   { index: 18, field: "voter_status",     label: "Voter Status" },
@@ -57,6 +57,46 @@ const MA_VOTER_ACTIVITY_COLUMNS = [
   { index: 23, field: "skip",             label: "Mailing Zip" },
   { index: 24, field: "skip",             label: "Batch Date" },
 ];
+
+// MA City/Town ID → City/Town Name lookup (from DistrictList_2022.xlsx CityTown sheet)
+const MA_CITY_TOWN = {
+  1:"Abington",2:"Acton",3:"Acushnet",4:"Adams",5:"Agawam",6:"Alford",7:"Amesbury",8:"Amherst",9:"Andover",10:"Aquinnah",
+  11:"Arlington",12:"Ashburnham",13:"Ashby",14:"Ashfield",15:"Ashland",16:"Assonet",17:"Athol",18:"Attleboro",19:"Auburn",20:"Avon",
+  21:"Ayer",22:"Barnstable",23:"Barre",24:"Becket",25:"Bedford",26:"Belchertown",27:"Bellingham",28:"Belmont",29:"Berkley",30:"Berlin",
+  31:"Bernardston",32:"Beverly",33:"Billerica",34:"Blackstone",35:"Blandford",36:"Bolton",37:"Boston",38:"Bourne",39:"Boxborough",40:"Boxford",
+  41:"Boylston",42:"Braintree",43:"Brewster",44:"Bridgewater",45:"Brimfield",46:"Brockton",47:"Brookfield",48:"Brookline",49:"Buckland",50:"Burlington",
+  51:"Cambridge",52:"Canton",53:"Carlisle",54:"Carver",55:"Charlemont",56:"Charlton",57:"Chatham",58:"Chelmsford",59:"Chelsea",60:"Cheshire",
+  61:"Chester",62:"Chesterfield",63:"Chicopee",64:"Chilmark",65:"Clarksburg",66:"Clinton",67:"Cohasset",68:"Colrain",69:"Concord",70:"Conway",
+  71:"Cummington",72:"Dalton",73:"Danvers",74:"Dartmouth",75:"Dedham",76:"Deerfield",77:"Dennis",78:"Dighton",79:"Douglas",80:"Dover",
+  81:"Dracut",82:"Dudley",83:"Dunstable",84:"Duxbury",85:"East Bridgewater",86:"East Brookfield",87:"East Longmeadow",88:"Eastham",89:"Easthampton",90:"Easton",
+  91:"Edgartown",92:"Egremont",93:"Erving",94:"Essex",95:"Everett",96:"Fairhaven",97:"Fall River",98:"Falmouth",99:"Fitchburg",100:"Florida",
+  101:"Foxborough",102:"Framingham",103:"Franklin",104:"Freetown",105:"Gardner",106:"Georgetown",107:"Gill",108:"Gloucester",109:"Goshen",110:"Gosnold",
+  111:"Grafton",112:"Granby",113:"Granville",114:"Great Barrington",115:"Greenfield",116:"Groton",117:"Groveland",118:"Hadley",119:"Halifax",120:"Hamilton",
+  121:"Hampden",122:"Hancock",123:"Hanover",124:"Hanson",125:"Hardwick",126:"Harvard",127:"Harwich",128:"Hatfield",129:"Haverhill",130:"Hawley",
+  131:"Heath",132:"Hingham",133:"Hinsdale",134:"Holbrook",135:"Holden",136:"Holland",137:"Holliston",138:"Holyoke",139:"Hopedale",140:"Hopkinton",
+  141:"Hubbardston",142:"Hudson",143:"Hull",144:"Huntington",145:"Ipswich",146:"Kingston",147:"Lakeville",148:"Lancaster",149:"Lanesborough",150:"Lawrence",
+  151:"Lee",152:"Leicester",153:"Lenox",154:"Leominster",155:"Leverett",156:"Lexington",157:"Leyden",158:"Lincoln",159:"Littleton",160:"Longmeadow",
+  161:"Lowell",162:"Ludlow",163:"Lunenburg",164:"Lynn",165:"Lynnfield",166:"Malden",167:"Manchester",168:"Mansfield",169:"Marblehead",170:"Marion",
+  171:"Marlborough",172:"Marshfield",173:"Mashpee",174:"Mattapoisett",175:"Maynard",176:"Medfield",177:"Medford",178:"Medway",179:"Melrose",180:"Mendon",
+  181:"Merrimac",182:"Methuen",183:"Middleborough",184:"Middlefield",185:"Middleton",186:"Milford",187:"Millbury",188:"Millis",189:"Millville",190:"Milton",
+  191:"Monroe",192:"Monson",193:"Montague",194:"Monterey",195:"Montgomery",196:"Mount Washington",197:"Nahant",198:"Nantucket",199:"Natick",200:"Needham",
+  201:"New Ashford",202:"New Bedford",203:"New Braintree",204:"New Marlborough",205:"New Salem",206:"Newbury",207:"Newburyport",208:"Newton",209:"Norfolk",210:"North Adams",
+  211:"North Andover",212:"North Attleborough",213:"North Brookfield",214:"North Reading",215:"Northampton",216:"Northborough",217:"Northbridge",218:"Northfield",219:"Norton",220:"Norwell",
+  221:"Norwood",222:"Oak Bluffs",223:"Oakham",224:"Orange",225:"Orleans",226:"Otis",227:"Oxford",228:"Palmer",229:"Paxton",230:"Peabody",
+  231:"Pelham",232:"Pembroke",233:"Pepperell",234:"Peru",235:"Petersham",236:"Phillipston",237:"Pittsfield",238:"Plainfield",239:"Plainville",240:"Plymouth",
+  241:"Plympton",242:"Princeton",243:"Provincetown",244:"Quincy",245:"Randolph",246:"Raynham",247:"Reading",248:"Rehoboth",249:"Revere",250:"Richmond",
+  251:"Rochester",252:"Rockland",253:"Rockport",254:"Rowe",255:"Rowley",256:"Royalston",257:"Russell",258:"Rutland",259:"Salem",260:"Salisbury",
+  261:"Sandisfield",262:"Sandwich",263:"Saugus",264:"Savoy",265:"Scituate",266:"Seekonk",267:"Sharon",268:"Sheffield",269:"Shelburne",270:"Sherborn",
+  271:"Shirley",272:"Shrewsbury",273:"Shutesbury",274:"Somerset",275:"Somerville",276:"South Hadley",277:"Southampton",278:"Southborough",279:"Southbridge",280:"Southwick",
+  281:"Spencer",282:"Springfield",283:"Sterling",284:"Stockbridge",285:"Stoneham",286:"Stoughton",287:"Stow",288:"Sturbridge",289:"Sudbury",290:"Sunderland",
+  291:"Sutton",292:"Swampscott",293:"Swansea",294:"Taunton",295:"Templeton",296:"Tewksbury",297:"Tisbury",298:"Tolland",299:"Topsfield",300:"Townsend",
+  301:"Truro",302:"Tyngsborough",303:"Tyringham",304:"Upton",305:"Uxbridge",306:"Wakefield",307:"Wales",308:"Walpole",309:"Waltham",310:"Ware",
+  311:"Wareham",312:"Warren",313:"Warwick",314:"Washington",315:"Watertown",316:"Wayland",317:"Webster",318:"Wellesley",319:"Wellfleet",320:"Wendell",
+  321:"Wenham",322:"West Boylston",323:"West Bridgewater",324:"West Brookfield",325:"West Newbury",326:"West Springfield",327:"West Stockbridge",328:"West Tisbury",329:"Westborough",330:"Westfield",
+  331:"Westford",332:"Westhampton",333:"Westminster",334:"Weston",335:"Westport",336:"Westwood",337:"Weymouth",338:"Whately",339:"Whitman",340:"Wilbraham",
+  341:"Williamsburg",342:"Williamstown",343:"Wilmington",344:"Winchendon",345:"Winchester",346:"Windsor",347:"Winthrop",348:"Woburn",349:"Worcester",350:"Worthington",
+  351:"Wrentham",352:"Yarmouth"
+};
 
 // MA party code → full name lookup
 const MA_PARTY_CODES = {
@@ -398,6 +438,9 @@ export default function DataImport() {
           }
           if (field === "party_affiliation") {
             val = MA_PARTY_CODES[val.trim()] || val;
+          }
+          if (field === "city" && isMaFormat) {
+            val = MA_CITY_TOWN[parseInt(val)] || val;
           }
           // For MA format, build street address from number + name
           if (isMaFormat && field === "address") {
