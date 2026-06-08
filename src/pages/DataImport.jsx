@@ -29,6 +29,58 @@ const VOTER_FIELDS = [
   { key: "skip",                 label: "— Skip this column —" },
 ];
 
+// MA Voter Activity History File - exact pipe-delimited column order (0-indexed)
+const MA_VOTER_ACTIVITY_COLUMNS = [
+  { index: 0,  field: "skip",             label: "Election Date" },
+  { index: 1,  field: "skip",             label: "Election Type Description" },
+  { index: 2,  field: "skip",             label: "Voter ID" },
+  { index: 3,  field: "last_name",        label: "Last Name" },
+  { index: 4,  field: "first_name",       label: "First Name" },
+  { index: 5,  field: "skip",             label: "Middle Name" },
+  { index: 6,  field: "skip",             label: "Title" },
+  { index: 7,  field: "skip",             label: "Residential Street Number" },
+  { index: 8,  field: "skip",             label: "Residential Street Number Suffix" },
+  { index: 9,  field: "address",          label: "Residential Street Name" },
+  { index: 10, field: "skip",             label: "Residential Apartment Number" },
+  { index: 11, field: "zip",              label: "Residential Zip Code" },
+  { index: 12, field: "city",             label: "City/Town Name" },
+  { index: 13, field: "party_affiliation",label: "Party Affiliation" },
+  { index: 14, field: "skip",             label: "Party Voted" },
+  { index: 15, field: "skip",             label: "City/Town Code" },
+  { index: 16, field: "ward",             label: "Ward Number" },
+  { index: 17, field: "precinct",         label: "Precinct Number" },
+  { index: 18, field: "voter_status",     label: "Voter Status" },
+  { index: 19, field: "skip",             label: "Mailing Street Address" },
+  { index: 20, field: "skip",             label: "Mailing Apartment Number" },
+  { index: 21, field: "skip",             label: "Mailing City/Town Name" },
+  { index: 22, field: "skip",             label: "Mailing State" },
+  { index: 23, field: "skip",             label: "Mailing Zip" },
+  { index: 24, field: "skip",             label: "Batch Date" },
+];
+
+// MA party code → full name lookup
+const MA_PARTY_CODES = {
+  V: "America First Party", Q: "American Independent", BB: "American Term Limits",
+  A: "Conservative", K: "Constitution Party", D: "Democrat", JJ: "Forward Party",
+  G: "Green Party USA", J: "Green-Rainbow", T: "Inter. 3rd Party",
+  EE: "Latino-Vote Party", L: "Libertarian", O: "Mass Independent Party",
+  B: "Natural Law Party", N: "New Alliance", C: "New World Council",
+  X: "Pirate", AA: "Pizza Party", P: "Prohibition", F: "Rainbow Coalition",
+  E: "Reform", R: "Republican", KK: "Socialism and Liberation", S: "Socialist",
+  FF: "The People's Party", M: "Timesizing Not Down", DD: "Twelve Visions Party",
+  U: "Unenrolled", CC: "United Independent Party", HH: "Unity Party",
+  W: "Veteran Party America", H: "We The People", GG: "Workers Party",
+  Z: "Working Families", Y: "World Citizens Party",
+};
+
+// Detect if a file matches the MA Voter Activity History layout (pipe-delimited, no header row)
+function detectMAVoterActivityFormat(text) {
+  const firstLine = text.split("\n")[0];
+  const cols = firstLine.split("|");
+  // MA file has ~25 pipe-delimited columns and no header (first col looks like a date MM/DD/YYYY)
+  return cols.length >= 18 && /^\d{2}\/\d{2}\/\d{4}/.test(cols[0].trim());
+}
+
 // Maps known column name patterns from the MA Special Request Voter Extract
 // to VOTER_FIELDS keys. Checked against the lowercased, stripped column header.
 const COLUMN_AUTO_MAP = [
@@ -184,6 +236,31 @@ export default function DataImport() {
     setFile({ name, text });
     setImportResult(null);
     setZipFiles([]);
+
+    // Check if this is the MA Voter Activity History format (no header row, pipe-delimited)
+    if (detectMAVoterActivityFormat(text)) {
+      // Use the known column layout — synthesize header names from the spec
+      const syntheticHeaders = MA_VOTER_ACTIVITY_COLUMNS.map(c => c.label);
+      const autoMap = {};
+      MA_VOTER_ACTIVITY_COLUMNS.forEach(c => { autoMap[c.label] = c.field; });
+
+      // Build preview rows using synthetic headers
+      const lines = text.split("\n").filter(l => l.trim());
+      const rows = lines.slice(0, 5).map(line => {
+        const values = line.split("|").map(v => v.trim());
+        const row = {};
+        syntheticHeaders.forEach((h, i) => { row[h] = values[i] || ""; });
+        return row;
+      });
+
+      setCsvHeaders(syntheticHeaders);
+      setCsvPreview(rows);
+      setFileDelimiter("|");
+      setMapping(autoMap);
+      setFile({ name, text, maFormat: true });
+      return;
+    }
+
     const { headers, rows, delimiter } = parseCSV(text);
     setCsvHeaders(headers);
     setCsvPreview(rows);
@@ -299,8 +376,10 @@ export default function DataImport() {
 
     const lines = file.text.split("\n").filter(l => l.trim());
     const splitLine = (line) => line.split(fileDelimiter).map(v => v.trim().replace(/^"|"$/g, ""));
-    const headers = splitLine(lines[0]);
-    const dataLines = lines.slice(1);
+    const isMaFormat = file.maFormat;
+    // MA format has no header row — data starts at line 0
+    const dataLines = isMaFormat ? lines : lines.slice(1);
+    const headers = isMaFormat ? MA_VOTER_ACTIVITY_COLUMNS.map(c => c.label) : splitLine(lines[0]);
     let imported = 0, failed = 0;
     const batchSize = 25;
 
@@ -313,10 +392,18 @@ export default function DataImport() {
           const field = mapping[h];
           if (!field || field === "skip") return;
           let val = values[idx] || "";
-          // Translate single-char voter status codes
           if (field === "voter_status") {
             if (val === "A") val = "active";
             else if (val === "I") val = "inactive";
+          }
+          if (field === "party_affiliation") {
+            val = MA_PARTY_CODES[val.trim()] || val;
+          }
+          // For MA format, build street address from number + name
+          if (isMaFormat && field === "address") {
+            const streetNum = values[7] || "";
+            const streetName = values[9] || "";
+            val = [streetNum, streetName].filter(Boolean).join(" ").trim();
           }
           record[field] = val;
         });
