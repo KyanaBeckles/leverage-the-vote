@@ -478,12 +478,12 @@ export default function DataImport() {
         .filter(r => r.last_name || r.full_name);
 
       let imported = 0;
-      const batchSize = 100;
+      const batchSize = 500;
       for (let i = 0; i < allRecordsRaw.length; i += batchSize) {
         const batch = allRecordsRaw.slice(i, i + batchSize);
         await base44.entities.Voter.bulkCreate(batch);
         imported += batch.length;
-        setProgress(Math.round(((i + batch.length) / allRecordsRaw.length) * 100));
+        setProgress(Math.round((imported / allRecordsRaw.length) * 100));
       }
       setImportResult({ imported, failed: uniqueLines.length - allRecordsRaw.length, total: uniqueLines.length });
       setImporting(false);
@@ -496,13 +496,13 @@ export default function DataImport() {
       .filter(r => r.last_name || r.full_name);
 
     let imported = 0;
-    const batchSize = 100;
+    const batchSize = 500;
 
     for (let i = 0; i < allRecords.length; i += batchSize) {
       const batch = allRecords.slice(i, i + batchSize);
       await base44.entities.Voter.bulkCreate(batch);
       imported += batch.length;
-      setProgress(Math.round(((i + batch.length) / allRecords.length) * 100));
+      setProgress(Math.round((imported / allRecords.length) * 100));
     }
 
     setImportResult({ imported, failed: uniqueLines.length - allRecords.length, total: uniqueLines.length });
