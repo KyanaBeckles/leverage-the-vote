@@ -243,7 +243,10 @@ export default function DataImport() {
       }
     } else {
       const binary = atob(base64);
-      loadCSVText(binary, driveFile.name);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const text = new TextDecoder("windows-1252").decode(bytes);
+      loadCSVText(text, driveFile.name);
     }
   };
 
@@ -276,7 +279,11 @@ export default function DataImport() {
       }
     } else {
       const binary = atob(base64);
-      loadCSVText(binary, "drive-file.csv");
+      // Decode as Latin-1 to handle Windows-1252 encoded state voter files
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const text = new TextDecoder("windows-1252").decode(bytes);
+      loadCSVText(text, "drive-file.csv");
     }
   };
 
