@@ -49,7 +49,7 @@ export default function BallotEngine() {
   const threshold = campaign?.signature_threshold || 0;
   // Sum from sheet-level counts (populated when sheets are scanned/processed)
   const rawSigs = sheets.reduce((sum, s) => sum + (s.raw_signature_count || 0), 0);
-  const certifiedSigs = sheets.reduce((sum, s) => sum + (s.certified_count || 0), 0);
+  const certifiedSigs = signatures.filter(s => s.verification_status === "certified").length;
 
   return (
     <div className="min-h-screen p-6 lg:p-8 max-w-[1600px]">
