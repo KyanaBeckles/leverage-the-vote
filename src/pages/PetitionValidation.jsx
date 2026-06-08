@@ -29,6 +29,30 @@ export default function PetitionValidation() {
 
   const scannedSheets = sheets.filter(s => ["scanned", "at_clerk", "certified"].includes(s.pipeline_status));
 
+  // Fetch all signatures for the campaign to build sheet identifiers
+  const { data: allSignatures = [] } = useQuery({
+    queryKey: ["allSignatures", campaign?.id],
+    queryFn: () => campaign ? base44.entities.Signature.filter({ campaign_id: campaign.id }) : [],
+    enabled: !!campaign,
+  });
+
+  // Build a map of sheet_id → first signature (by line_number)
+  const firstSigBySheet = {};
+  allSignatures.forEach(sig => {
+    const existing = firstSigBySheet[sig.petition_sheet_id];
+    if (!existing || (sig.line_number || 0) < (existing.line_number || 0)) {
+      firstSigBySheet[sig.petition_sheet_id] = sig;
+    }
+  });
+
+  const sheetLabel = (s) => {
+    const firstSig = firstSigBySheet[s.id];
+    const town = s.town_clerk || "";
+    const name = firstSig?.signer_name || "";
+    if (town || name) return `${town}${town && name ? " · " : ""}${name}`;
+    return `Sheet #${s.sheet_number}`;
+  };
+
   const { data: signatures = [] } = useQuery({
     queryKey: ["signatures", selectedSheet?.id],
     queryFn: () => selectedSheet ? base44.entities.Signature.filter({ petition_sheet_id: selectedSheet.id }) : [],
@@ -63,7 +87,7 @@ export default function PetitionValidation() {
                 <SelectContent>
                   {scannedSheets.map(s => (
                     <SelectItem key={s.id} value={s.id}>
-                      Sheet #{s.sheet_number} · {s.raw_signature_count || 0} sigs · {s.pipeline_status.replace(/_/g, " ")}
+                      {sheetLabel(s)} · {s.raw_signature_count || 0} sigs · {s.pipeline_status.replace(/_/g, " ")}
                     </SelectItem>
                   ))}
                 </SelectContent>
