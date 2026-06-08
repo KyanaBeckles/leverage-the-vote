@@ -447,9 +447,17 @@ export default function DataImport() {
       return record;
     };
 
-    // For MA Voter Activity files: deduplicate by Voter ID (col 2) — one row per voter
+    // For MA Voter Activity files: count appearances per Voter ID, then deduplicate
     let uniqueLines = dataLines;
     if (isMaFormat) {
+      // First pass: count how many elections each voter participated in
+      const voteCounts = {};
+      dataLines.forEach(line => {
+        const voterId = line.split("|")[2]?.trim();
+        if (voterId) voteCounts[voterId] = (voteCounts[voterId] || 0) + 1;
+      });
+
+      // Second pass: keep only the first occurrence, attach the count
       const seen = new Set();
       uniqueLines = dataLines.filter(line => {
         const voterId = line.split("|")[2]?.trim();
@@ -457,6 +465,29 @@ export default function DataImport() {
         seen.add(voterId);
         return true;
       });
+
+      // Attach vote_count to each record after building
+      const allRecordsRaw = uniqueLines
+        .map(line => {
+          const record = buildRecord(line);
+          const voterId = line.split("|")[2]?.trim();
+          if (voterId) record.vote_count = voteCounts[voterId] || 1;
+          return record;
+        })
+        .filter(r => r.last_name || r.full_name);
+
+      let imported = 0;
+      const batchSize = 100;
+      for (let i = 0; i < allRecordsRaw.length; i += batchSize) {
+        const batch = allRecordsRaw.slice(i, i + batchSize);
+        await base44.entities.Voter.bulkCreate(batch);
+        imported += batch.length;
+        setProgress(Math.round(((i + batch.length) / allRecordsRaw.length) * 100));
+      }
+      setImportResult({ imported, failed: uniqueLines.length - allRecordsRaw.length, total: uniqueLines.length });
+      setImporting(false);
+      queryClient.invalidateQueries({ queryKey: ["voters"] });
+      return;
     }
 
     const allRecords = uniqueLines

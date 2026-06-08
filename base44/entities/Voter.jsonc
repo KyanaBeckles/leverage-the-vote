@@ -45,6 +45,10 @@
       ],
       "default": "active"
     },
+    "vote_count": {
+      "type": "number",
+      "description": "Number of election events this voter participated in (from MA Voter Activity file)"
+    },
     "phone": {
       "type": "string"
     },
