@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, CheckCircle2, AlertTriangle, HelpCircle, ArrowRight, Loader2, HardDrive, Link as LinkIcon, Archive } from "lucide-react";
+import { Upload, FileText, CheckCircle2, AlertTriangle, HelpCircle, ArrowRight, Loader2, HardDrive, Link as LinkIcon, Archive, Download, XCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
@@ -252,6 +252,7 @@ export default function DataImport() {
   const [zipFiles, setZipFiles] = useState([]); // extracted CSVs from a zip
   const [driveFolderOverride, setDriveFolderOverride] = useState(null);
   const [fileDelimiter, setFileDelimiter] = useState(",");
+  const [failedRows, setFailedRows] = useState([]);
   const fileRef = useRef(null);
   const queryClient = useQueryClient();
 
@@ -414,13 +415,30 @@ export default function DataImport() {
 
   const resetFile = () => {
     setFile(null); setCsvHeaders([]); setCsvPreview([]); setMapping({});
-    setImportResult(null); setZipFiles([]); setDriveLink("");
+    setImportResult(null); setZipFiles([]); setDriveLink(""); setFailedRows([]);
+  };
+
+  const downloadFailedRows = () => {
+    if (!failedRows.length) return;
+    const headers = Object.keys(failedRows[0].row);
+    const csvContent = [
+      [...headers, "failure_reason"].join(","),
+      ...failedRows.map(({ row, reason }) =>
+        [...headers.map(h => `"${(row[h] || "").replace(/"/g, '""')}"`), `"${reason}"`].join(",")
+      )
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "failed_rows.csv"; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleImport = async () => {
     if (!campaign || !file?.text) return;
     setImporting(true);
     setProgress(0);
+    setFailedRows([]);
 
     const lines = file.text.split("\n").filter(l => l.trim());
     const splitLine = (line) => line.split(fileDelimiter).map(v => v.trim().replace(/^"|"$/g, ""));
@@ -447,80 +465,100 @@ export default function DataImport() {
         }
         record[field] = val;
       });
-      // Combine street_number + street_name → address
       if (record.street_number || record.street_name) {
         record.address = [record.street_number, record.street_name].filter(Boolean).join(" ").trim();
       }
       return record;
     };
 
-    // For MA Voter Activity files: count appearances per Voter ID, then deduplicate
-    let uniqueLines = dataLines;
+    // Build raw records with duplicate detection (by name+address+zip within this file)
+    const buildAllRecords = (sourceLines, extraTransform) => {
+      const seen = new Set();
+      const validRecords = [];
+      const skipped = [];
+      sourceLines.forEach((line, idx) => {
+        const record = extraTransform ? extraTransform(line, buildRecord(line)) : buildRecord(line);
+        if (!record.last_name && !record.full_name) {
+          skipped.push({ row: { line_number: idx + 2, raw: line.slice(0, 80) }, reason: "Missing name" });
+          return;
+        }
+        const dupeKey = `${(record.last_name || record.full_name || "").toLowerCase()}|${(record.address || "").toLowerCase()}|${(record.zip || "")}`;
+        if (seen.has(dupeKey)) {
+          skipped.push({ row: { line_number: idx + 2, last_name: record.last_name, first_name: record.first_name, address: record.address, zip: record.zip }, reason: "Duplicate within file" });
+          return;
+        }
+        seen.add(dupeKey);
+        validRecords.push(record);
+      });
+      return { validRecords, skipped };
+    };
+
+    const runBatchImport = async (validRecords, totalForProgress) => {
+      const batchSize = 500;
+      const batches = [];
+      for (let i = 0; i < validRecords.length; i += batchSize) {
+        batches.push(validRecords.slice(i, i + batchSize));
+      }
+      let completed = 0;
+      let batchFailed = [];
+      const concurrency = 5;
+      for (let i = 0; i < batches.length; i += concurrency) {
+        const chunk = batches.slice(i, i + concurrency);
+        const results = await Promise.allSettled(chunk.map(batch => base44.entities.Voter.bulkCreate(batch)));
+        results.forEach((result, ci) => {
+          if (result.status === "fulfilled") {
+            completed += chunk[ci].length;
+          } else {
+            // Batch failed — record each row so user can download & retry
+            chunk[ci].forEach(record => {
+              batchFailed.push({ row: { last_name: record.last_name, first_name: record.first_name, address: record.address, zip: record.zip }, reason: `Batch error: ${result.reason?.message || "unknown"}` });
+            });
+          }
+        });
+        const processed = Math.min(i * batchSize + chunk.reduce((s, b) => s + b.length, 0), totalForProgress);
+        setProgress(Math.round((processed / totalForProgress) * 100));
+      }
+      return { completed, batchFailed };
+    };
+
+    let allSkipped = [];
+    let totalImported = 0;
+    let totalLines = dataLines.length;
+
     if (isMaFormat) {
-      // First pass: count how many elections each voter participated in
+      // Count election appearances per Voter ID
       const voteCounts = {};
       dataLines.forEach(line => {
         const voterId = line.split("|")[2]?.trim();
         if (voterId) voteCounts[voterId] = (voteCounts[voterId] || 0) + 1;
       });
-
-      // Second pass: keep only the first occurrence, attach the count
-      const seen = new Set();
-      uniqueLines = dataLines.filter(line => {
+      // Dedupe by Voter ID first
+      const seenIds = new Set();
+      const uniqueLines = dataLines.filter(line => {
         const voterId = line.split("|")[2]?.trim();
-        if (!voterId || seen.has(voterId)) return false;
-        seen.add(voterId);
+        if (!voterId || seenIds.has(voterId)) return false;
+        seenIds.add(voterId);
         return true;
       });
-
-      // Attach vote_count to each record after building
-      const allRecordsRaw = uniqueLines
-        .map(line => {
-          const record = buildRecord(line);
-          const voterId = line.split("|")[2]?.trim();
-          if (voterId) record.vote_count = voteCounts[voterId] || 1;
-          return record;
-        })
-        .filter(r => r.last_name || r.full_name);
-
-      const batchSize = 500;
-      const batches = [];
-      for (let i = 0; i < allRecordsRaw.length; i += batchSize) {
-        batches.push(allRecordsRaw.slice(i, i + batchSize));
-      }
-      let completed = 0;
-      const concurrency = 5;
-      for (let i = 0; i < batches.length; i += concurrency) {
-        const chunk = batches.slice(i, i + concurrency);
-        await Promise.all(chunk.map(batch => base44.entities.Voter.bulkCreate(batch)));
-        completed += chunk.reduce((s, b) => s + b.length, 0);
-        setProgress(Math.round((completed / allRecordsRaw.length) * 100));
-      }
-      setImportResult({ imported: completed, failed: uniqueLines.length - allRecordsRaw.length, total: uniqueLines.length });
-      setImporting(false);
-      queryClient.invalidateQueries({ queryKey: ["voters"] });
-      return;
+      const { validRecords, skipped } = buildAllRecords(uniqueLines, (line, record) => {
+        const voterId = line.split("|")[2]?.trim();
+        if (voterId) record.vote_count = voteCounts[voterId] || 1;
+        return record;
+      });
+      allSkipped = skipped;
+      const { completed, batchFailed } = await runBatchImport(validRecords, validRecords.length);
+      totalImported = completed;
+      allSkipped = [...allSkipped, ...batchFailed];
+    } else {
+      const { validRecords, skipped } = buildAllRecords(dataLines);
+      allSkipped = skipped;
+      const { completed, batchFailed } = await runBatchImport(validRecords, validRecords.length);
+      totalImported = completed;
+      allSkipped = [...allSkipped, ...batchFailed];
     }
 
-    const allRecords = uniqueLines
-      .map(buildRecord)
-      .filter(r => r.last_name || r.full_name);
-
-    const batchSize = 500;
-    const batches = [];
-    for (let i = 0; i < allRecords.length; i += batchSize) {
-      batches.push(allRecords.slice(i, i + batchSize));
-    }
-    let completed = 0;
-    const concurrency = 5;
-    for (let i = 0; i < batches.length; i += concurrency) {
-      const chunk = batches.slice(i, i + concurrency);
-      await Promise.all(chunk.map(batch => base44.entities.Voter.bulkCreate(batch)));
-      completed += chunk.reduce((s, b) => s + b.length, 0);
-      setProgress(Math.round((completed / allRecords.length) * 100));
-    }
-
-    setImportResult({ imported: completed, failed: uniqueLines.length - allRecords.length, total: uniqueLines.length });
+    setFailedRows(allSkipped);
+    setImportResult({ imported: totalImported, failed: allSkipped.length, total: totalLines });
     setImporting(false);
     queryClient.invalidateQueries({ queryKey: ["voters"] });
   };
@@ -674,25 +712,57 @@ export default function DataImport() {
 
             {importing && (
               <div className="mt-4">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                  <span className="flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Importing…</span>
+                  <span>{progress}%</span>
+                </div>
                 <Progress value={progress} className="h-2" />
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Importing... {progress}%
-                </p>
               </div>
             )}
 
             {importResult && (
-              <div className="mt-4 p-4 rounded-lg bg-green-50 border border-green-200">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  <p className="text-sm font-medium text-green-800">
-                    Import Complete: {importResult.imported} voters imported
+              <div className="mt-4 space-y-2">
+                <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <p className="text-sm font-medium text-green-800">
+                      Import Complete — {importResult.imported.toLocaleString()} voters imported
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {importResult.total.toLocaleString()} total rows processed
                   </p>
                 </div>
                 {importResult.failed > 0 && (
-                  <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {importResult.failed} rows skipped (missing required name)
-                  </p>
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <XCircle className="w-4 h-4 text-amber-600" />
+                        <p className="text-sm font-medium text-amber-800">
+                          {importResult.failed.toLocaleString()} rows skipped
+                        </p>
+                      </div>
+                      {failedRows.length > 0 && (
+                        <Button size="sm" variant="outline" onClick={downloadFailedRows} className="text-xs h-7 gap-1">
+                          <Download className="w-3 h-3" /> Download failed rows
+                        </Button>
+                      )}
+                    </div>
+                    <div className="mt-2 text-xs text-amber-700 space-y-0.5">
+                      {(() => {
+                        const missingName = failedRows.filter(r => r.reason === "Missing name").length;
+                        const dupes = failedRows.filter(r => r.reason === "Duplicate within file").length;
+                        const batchErr = failedRows.filter(r => r.reason.startsWith("Batch error")).length;
+                        return (
+                          <>
+                            {missingName > 0 && <p>• {missingName.toLocaleString()} missing required name</p>}
+                            {dupes > 0 && <p>• {dupes.toLocaleString()} duplicates removed</p>}
+                            {batchErr > 0 && <p>• {batchErr.toLocaleString()} failed to save (download to retry)</p>}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 )}
               </div>
             )}
