@@ -14,9 +14,13 @@ import ClearVotersButton from "@/components/import/ClearVotersButton";
 
 const VOTER_FIELDS = [
   { key: "first_name",           label: "First Name" },
+  { key: "middle_name",          label: "Middle Name" },
   { key: "last_name",            label: "Last Name" },
   { key: "full_name",            label: "Full Name" },
-  { key: "address",              label: "Street Address" },
+  { key: "street_number",        label: "Street Number (St#)" },
+  { key: "street_name",          label: "Street Name" },
+  { key: "apt_number",           label: "Apt #" },
+  { key: "address",              label: "Street Address (combined)" },
   { key: "city",                 label: "City/Town" },
   { key: "state",                label: "State" },
   { key: "zip",                  label: "ZIP Code" },
@@ -37,12 +41,12 @@ const MA_VOTER_ACTIVITY_COLUMNS = [
   { index: 2,  field: "skip",             label: "Voter ID" },
   { index: 3,  field: "last_name",        label: "Last Name" },
   { index: 4,  field: "first_name",       label: "First Name" },
-  { index: 5,  field: "skip",             label: "Middle Name" },
+  { index: 5,  field: "middle_name",      label: "Middle Name" },
   { index: 6,  field: "skip",             label: "Title" },
-  { index: 7,  field: "skip",             label: "Residential Street Number" },
+  { index: 7,  field: "street_number",    label: "Residential Street Number" },
   { index: 8,  field: "skip",             label: "Residential Street Number Suffix" },
-  { index: 9,  field: "address",          label: "Residential Street Name" },
-  { index: 10, field: "skip",             label: "Residential Apartment Number" },
+  { index: 9,  field: "street_name",      label: "Residential Street Name" },
+  { index: 10, field: "apt_number",       label: "Residential Apartment Number" },
   { index: 11, field: "zip",              label: "Residential Zip Code" },
   { index: 12, field: "skip",             label: "City/Town Name (raw)" },
   { index: 13, field: "party_affiliation",label: "Party Affiliation" },
@@ -128,16 +132,19 @@ const COLUMN_AUTO_MAP = [
   { keys: ["firstname","first_name","fname"],                       field: "first_name" },
   { keys: ["lastname","last_name","lname","surname"],               field: "last_name" },
   { keys: ["fullname","full_name","name"],                          field: "full_name" },
-  { keys: ["middlename","middle_name","mname"],                     field: "skip" },
+  { keys: ["middlename","middle_name","mname","mi"],                field: "middle_name" },
   { keys: ["title","suffix"],                                       field: "skip" },
-  { keys: ["streetno","streetnum","streetaddressno","resnumber",
-            "resaddressno","resstreetno"],                           field: "skip" },
+  { keys: ["st#","stno","streetno","streetnum","streetaddressno",
+            "resnumber","resaddressno","resstreetno","houseno",
+            "housenumber","streetnumber"],                          field: "street_number" },
   { keys: ["streetnosuffix","resstreetsuffix"],                     field: "skip" },
-  { keys: ["streetname","resstreetname","residentialaddressstreetname",
-            "residentialaddress-streetname"],                       field: "address" },
-  { keys: ["aptno","apt","apartment","resaptno","residentialaddressapt"],field: "skip" },
+  { keys: ["street","streetname","resstreetname",
+            "residentialaddressstreetname",
+            "residentialaddress-streetname"],                       field: "street_name" },
+  { keys: ["apt#","aptno","apt","apartment","resaptno",
+            "residentialaddressapt","aptnumber"],                   field: "apt_number" },
   { keys: ["zipcode","zip","reszip","residentialaddresszipcode",
-            "residentialzipcode","zip_code"],                       field: "zip" },
+            "residentialzipcode","zip_code","zipcode"],             field: "zip" },
   { keys: ["mailingstreet","mailingaddress","mailingstreetaddress"], field: "skip" },
   { keys: ["mailingapt"],                                           field: "skip" },
   { keys: ["mailingcity","mailingcitytown"],                        field: "skip" },
@@ -438,13 +445,12 @@ export default function DataImport() {
         if (field === "city" && isMaFormat) {
           val = MA_CITY_TOWN[parseInt(val)] || val;
         }
-        if (isMaFormat && field === "address") {
-          const streetNum = values[7] || "";
-          const streetName = values[9] || "";
-          val = [streetNum, streetName].filter(Boolean).join(" ").trim();
-        }
         record[field] = val;
       });
+      // Combine street_number + street_name → address
+      if (record.street_number || record.street_name) {
+        record.address = [record.street_number, record.street_name].filter(Boolean).join(" ").trim();
+      }
       return record;
     };
 

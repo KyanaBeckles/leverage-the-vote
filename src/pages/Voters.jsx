@@ -111,10 +111,10 @@ export default function Voters() {
               {filtered.slice(0, 100).map((voter) => (
                 <TableRow key={voter.id} className="cursor-pointer hover:bg-muted/50">
                   <TableCell className="font-medium text-sm">
-                    {voter.full_name || [voter.first_name, voter.last_name].filter(Boolean).join(" ") || "—"}
+                    {voter.full_name || [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ") || "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {voter.address}{voter.city ? `, ${voter.city}` : ""}
+                    {[voter.address, voter.apt_number ? `Apt ${voter.apt_number}` : null, voter.city].filter(Boolean).join(", ") || "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {[voter.ward, voter.precinct].filter(Boolean).join(" / ") || "—"}
