@@ -20,13 +20,17 @@ export default function ClearVotersButton({ campaignId, onCleared }) {
   const handleClear = async () => {
     if (!campaignId) return;
     setClearing(true);
-    // Fetch and delete in pages of 50 until none remain
+    // Delete sequentially in small batches to avoid rate limits
     let remaining = true;
     while (remaining) {
-      const voters = await base44.entities.Voter.filter({ campaign_id: campaignId }, "-created_date", 50);
+      const voters = await base44.entities.Voter.filter({ campaign_id: campaignId }, "-created_date", 10);
       if (voters.length === 0) { remaining = false; break; }
-      await Promise.all(voters.map(v => base44.entities.Voter.delete(v.id)));
-      if (voters.length < 50) remaining = false;
+      for (const v of voters) {
+        await base44.entities.Voter.delete(v.id);
+      }
+      if (voters.length < 10) remaining = false;
+      // Small pause between batches to respect rate limits
+      await new Promise(r => setTimeout(r, 300));
     }
     setClearing(false);
     onCleared?.();
