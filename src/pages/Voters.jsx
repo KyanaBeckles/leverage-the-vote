@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Upload, MapPin, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import ClearVotersButton from "@/components/import/ClearVotersButton";
 
 const contactColors = {
   unknown: "bg-slate-100 text-slate-600",
@@ -22,6 +24,8 @@ const contactColors = {
 export default function Voters() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+
+  const queryClient = useQueryClient();
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns"],
@@ -53,11 +57,16 @@ export default function Voters() {
           <h1 className="text-2xl font-display font-bold">Voter File</h1>
           <p className="text-sm text-muted-foreground">{voters.length.toLocaleString()} voters loaded</p>
         </div>
-        <Link to="/import">
-          <Button variant="outline">
-            <Upload className="w-4 h-4 mr-1.5" /> Import Voters
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {voters.length > 0 && (
+            <ClearVotersButton campaignId={campaign?.id} onCleared={() => queryClient.invalidateQueries({ queryKey: ["voters"] })} />
+          )}
+          <Link to="/import">
+            <Button variant="outline">
+              <Upload className="w-4 h-4 mr-1.5" /> Import Voters
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 mb-6">
