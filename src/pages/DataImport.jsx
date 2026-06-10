@@ -494,29 +494,36 @@ export default function DataImport() {
     };
 
     const runBatchImport = async (validRecords, totalForProgress) => {
-      const batchSize = 500;
+      const batchSize = 100;
+      const delay = (ms) => new Promise(r => setTimeout(r, ms));
       const batches = [];
       for (let i = 0; i < validRecords.length; i += batchSize) {
         batches.push(validRecords.slice(i, i + batchSize));
       }
       let completed = 0;
       let batchFailed = [];
-      const concurrency = 5;
-      for (let i = 0; i < batches.length; i += concurrency) {
-        const chunk = batches.slice(i, i + concurrency);
-        const results = await Promise.allSettled(chunk.map(batch => base44.entities.Voter.bulkCreate(batch)));
-        results.forEach((result, ci) => {
-          if (result.status === "fulfilled") {
-            completed += chunk[ci].length;
-          } else {
-            // Batch failed — record each row so user can download & retry
-            chunk[ci].forEach(record => {
-              batchFailed.push({ row: { last_name: record.last_name, first_name: record.first_name, address: record.address, zip: record.zip }, reason: `Batch error: ${result.reason?.message || "unknown"}` });
-            });
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        let success = false;
+        // Retry up to 3 times per batch
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            await base44.entities.Voter.bulkCreate(batch);
+            completed += batch.length;
+            success = true;
+            break;
+          } catch {
+            await delay(500 * (attempt + 1)); // back off on retry
           }
-        });
-        const processed = Math.min(i * batchSize + chunk.reduce((s, b) => s + b.length, 0), totalForProgress);
-        setProgress(Math.round((processed / totalForProgress) * 100));
+        }
+        if (!success) {
+          batch.forEach(record => {
+            batchFailed.push({ row: { last_name: record.last_name, first_name: record.first_name, address: record.address, zip: record.zip }, reason: "Batch error after 3 retries" });
+          });
+        }
+        setProgress(Math.round(((i + 1) / batches.length) * 100));
+        await delay(150); // pace between batches
       }
       return { completed, batchFailed };
     };
