@@ -20,18 +20,7 @@ export default function ClearVotersButton({ campaignId, onCleared }) {
   const handleClear = async () => {
     if (!campaignId) return;
     setClearing(true);
-    const delay = (ms) => new Promise(r => setTimeout(r, ms));
-    let remaining = true;
-    while (remaining) {
-      const voters = await base44.entities.Voter.filter({ campaign_id: campaignId }, "-created_date", 5);
-      if (voters.length === 0) { remaining = false; break; }
-      for (const v of voters) {
-        await base44.entities.Voter.delete(v.id);
-        await delay(200); // pause between each delete
-      }
-      if (voters.length < 5) remaining = false;
-      await delay(500); // pause between batches
-    }
+    await base44.functions.invoke("clearVoters", { campaign_id: campaignId });
     setClearing(false);
     onCleared?.();
   };
