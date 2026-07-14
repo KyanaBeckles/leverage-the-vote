@@ -35,6 +35,10 @@ const VOTER_FIELDS = [
 ];
 
 // MA Voter Activity History File - exact pipe-delimited column order (0-indexed)
+// City/Town is read directly from the plain-text name at index 12 (not the numeric
+// code at index 15) — the code requires a City/Town ID lookup table that isn't
+// reliably reconstructable (the state's real ID list is non-sequential, e.g.
+// Aquinnah = 104, not 10), while the plain name is already right there in the file.
 const MA_VOTER_ACTIVITY_COLUMNS = [
   { index: 0,  field: "skip",             label: "Election Date" },
   { index: 1,  field: "skip",             label: "Election Type Description" },
@@ -48,10 +52,10 @@ const MA_VOTER_ACTIVITY_COLUMNS = [
   { index: 9,  field: "street_name",      label: "Residential Street Name" },
   { index: 10, field: "apt_number",       label: "Residential Apartment Number" },
   { index: 11, field: "zip",              label: "Residential Zip Code" },
-  { index: 12, field: "skip",             label: "City/Town Name (raw)" },
+  { index: 12, field: "city",             label: "City/Town Name" },
   { index: 13, field: "party_affiliation",label: "Party Affiliation" },
   { index: 14, field: "skip",             label: "Party Voted" },
-  { index: 15, field: "city",             label: "City/Town Code" },
+  { index: 15, field: "skip",             label: "City/Town Code" },
   { index: 16, field: "ward",             label: "Ward Number" },
   { index: 17, field: "precinct",         label: "Precinct Number" },
   { index: 18, field: "voter_status",     label: "Voter Status" },
@@ -62,46 +66,6 @@ const MA_VOTER_ACTIVITY_COLUMNS = [
   { index: 23, field: "skip",             label: "Mailing Zip" },
   { index: 24, field: "skip",             label: "Batch Date" },
 ];
-
-// MA City/Town ID → City/Town Name lookup (from DistrictList_2022.xlsx CityTown sheet)
-const MA_CITY_TOWN = {
-  1:"Abington",2:"Acton",3:"Acushnet",4:"Adams",5:"Agawam",6:"Alford",7:"Amesbury",8:"Amherst",9:"Andover",10:"Aquinnah",
-  11:"Arlington",12:"Ashburnham",13:"Ashby",14:"Ashfield",15:"Ashland",16:"Assonet",17:"Athol",18:"Attleboro",19:"Auburn",20:"Avon",
-  21:"Ayer",22:"Barnstable",23:"Barre",24:"Becket",25:"Bedford",26:"Belchertown",27:"Bellingham",28:"Belmont",29:"Berkley",30:"Berlin",
-  31:"Bernardston",32:"Beverly",33:"Billerica",34:"Blackstone",35:"Blandford",36:"Bolton",37:"Boston",38:"Bourne",39:"Boxborough",40:"Boxford",
-  41:"Boylston",42:"Braintree",43:"Brewster",44:"Bridgewater",45:"Brimfield",46:"Brockton",47:"Brookfield",48:"Brookline",49:"Buckland",50:"Burlington",
-  51:"Cambridge",52:"Canton",53:"Carlisle",54:"Carver",55:"Charlemont",56:"Charlton",57:"Chatham",58:"Chelmsford",59:"Chelsea",60:"Cheshire",
-  61:"Chester",62:"Chesterfield",63:"Chicopee",64:"Chilmark",65:"Clarksburg",66:"Clinton",67:"Cohasset",68:"Colrain",69:"Concord",70:"Conway",
-  71:"Cummington",72:"Dalton",73:"Danvers",74:"Dartmouth",75:"Dedham",76:"Deerfield",77:"Dennis",78:"Dighton",79:"Douglas",80:"Dover",
-  81:"Dracut",82:"Dudley",83:"Dunstable",84:"Duxbury",85:"East Bridgewater",86:"East Brookfield",87:"East Longmeadow",88:"Eastham",89:"Easthampton",90:"Easton",
-  91:"Edgartown",92:"Egremont",93:"Erving",94:"Essex",95:"Everett",96:"Fairhaven",97:"Fall River",98:"Falmouth",99:"Fitchburg",100:"Florida",
-  101:"Foxborough",102:"Framingham",103:"Franklin",104:"Freetown",105:"Gardner",106:"Georgetown",107:"Gill",108:"Gloucester",109:"Goshen",110:"Gosnold",
-  111:"Grafton",112:"Granby",113:"Granville",114:"Great Barrington",115:"Greenfield",116:"Groton",117:"Groveland",118:"Hadley",119:"Halifax",120:"Hamilton",
-  121:"Hampden",122:"Hancock",123:"Hanover",124:"Hanson",125:"Hardwick",126:"Harvard",127:"Harwich",128:"Hatfield",129:"Haverhill",130:"Hawley",
-  131:"Heath",132:"Hingham",133:"Hinsdale",134:"Holbrook",135:"Holden",136:"Holland",137:"Holliston",138:"Holyoke",139:"Hopedale",140:"Hopkinton",
-  141:"Hubbardston",142:"Hudson",143:"Hull",144:"Huntington",145:"Ipswich",146:"Kingston",147:"Lakeville",148:"Lancaster",149:"Lanesborough",150:"Lawrence",
-  151:"Lee",152:"Leicester",153:"Lenox",154:"Leominster",155:"Leverett",156:"Lexington",157:"Leyden",158:"Lincoln",159:"Littleton",160:"Longmeadow",
-  161:"Lowell",162:"Ludlow",163:"Lunenburg",164:"Lynn",165:"Lynnfield",166:"Malden",167:"Manchester",168:"Mansfield",169:"Marblehead",170:"Marion",
-  171:"Marlborough",172:"Marshfield",173:"Mashpee",174:"Mattapoisett",175:"Maynard",176:"Medfield",177:"Medford",178:"Medway",179:"Melrose",180:"Mendon",
-  181:"Merrimac",182:"Methuen",183:"Middleborough",184:"Middlefield",185:"Middleton",186:"Milford",187:"Millbury",188:"Millis",189:"Millville",190:"Milton",
-  191:"Monroe",192:"Monson",193:"Montague",194:"Monterey",195:"Montgomery",196:"Mount Washington",197:"Nahant",198:"Nantucket",199:"Natick",200:"Needham",
-  201:"New Ashford",202:"New Bedford",203:"New Braintree",204:"New Marlborough",205:"New Salem",206:"Newbury",207:"Newburyport",208:"Newton",209:"Norfolk",210:"North Adams",
-  211:"North Andover",212:"North Attleborough",213:"North Brookfield",214:"North Reading",215:"Northampton",216:"Northborough",217:"Northbridge",218:"Northfield",219:"Norton",220:"Norwell",
-  221:"Norwood",222:"Oak Bluffs",223:"Oakham",224:"Orange",225:"Orleans",226:"Otis",227:"Oxford",228:"Palmer",229:"Paxton",230:"Peabody",
-  231:"Pelham",232:"Pembroke",233:"Pepperell",234:"Peru",235:"Petersham",236:"Phillipston",237:"Pittsfield",238:"Plainfield",239:"Plainville",240:"Plymouth",
-  241:"Plympton",242:"Princeton",243:"Provincetown",244:"Quincy",245:"Randolph",246:"Raynham",247:"Reading",248:"Rehoboth",249:"Revere",250:"Richmond",
-  251:"Rochester",252:"Rockland",253:"Rockport",254:"Rowe",255:"Rowley",256:"Royalston",257:"Russell",258:"Rutland",259:"Salem",260:"Salisbury",
-  261:"Sandisfield",262:"Sandwich",263:"Saugus",264:"Savoy",265:"Scituate",266:"Seekonk",267:"Sharon",268:"Sheffield",269:"Shelburne",270:"Sherborn",
-  271:"Shirley",272:"Shrewsbury",273:"Shutesbury",274:"Somerset",275:"Somerville",276:"South Hadley",277:"Southampton",278:"Southborough",279:"Southbridge",280:"Southwick",
-  281:"Spencer",282:"Springfield",283:"Sterling",284:"Stockbridge",285:"Stoneham",286:"Stoughton",287:"Stow",288:"Sturbridge",289:"Sudbury",290:"Sunderland",
-  291:"Sutton",292:"Swampscott",293:"Swansea",294:"Taunton",295:"Templeton",296:"Tewksbury",297:"Tisbury",298:"Tolland",299:"Topsfield",300:"Townsend",
-  301:"Truro",302:"Tyngsborough",303:"Tyringham",304:"Upton",305:"Uxbridge",306:"Wakefield",307:"Wales",308:"Walpole",309:"Waltham",310:"Ware",
-  311:"Wareham",312:"Warren",313:"Warwick",314:"Washington",315:"Watertown",316:"Wayland",317:"Webster",318:"Wellesley",319:"Wellfleet",320:"Wendell",
-  321:"Wenham",322:"West Boylston",323:"West Bridgewater",324:"West Brookfield",325:"West Newbury",326:"West Springfield",327:"West Stockbridge",328:"West Tisbury",329:"Westborough",330:"Westfield",
-  331:"Westford",332:"Westhampton",333:"Westminster",334:"Weston",335:"Westport",336:"Westwood",337:"Weymouth",338:"Whately",339:"Whitman",340:"Wilbraham",
-  341:"Williamsburg",342:"Williamstown",343:"Wilmington",344:"Winchendon",345:"Winchester",346:"Windsor",347:"Winthrop",348:"Woburn",349:"Worcester",350:"Worthington",
-  351:"Wrentham",352:"Yarmouth"
-};
 
 // MA party code → full name lookup
 const MA_PARTY_CODES = {
@@ -124,6 +88,61 @@ function detectMAVoterActivityFormat(text) {
   const cols = firstLine.split("|");
   // MA file has ~25 pipe-delimited columns and no header (first col looks like a date MM/DD/YYYY)
   return cols.length >= 18 && /^\d{2}\/\d{2}\/\d{4}/.test(cols[0].trim());
+}
+
+// Excel silently stores ZIP codes as numbers, which strips the leading zero every
+// Massachusetts ZIP starts with, and collapses 9-digit ZIP+4 codes into scientific
+// notation (e.g. "02301-1433" -> 23011433 -> "2.3013101E7"). Since MA ZIPs always
+// start with 0, a 4-digit value is a 5-digit ZIP missing its leading zero, and an
+// 8-digit value is a 9-digit ZIP+4 missing its leading zero — both recoverable.
+function repairMangledZip(raw) {
+  const val = String(raw ?? "").trim();
+  if (!val) return val;
+  if (/^\d{5}(-\d{4})?$/.test(val)) return val; // already well-formed
+  // A plain/decimal/scientific-notation number (e.g. "2301.0", "2.3013101E7") needs to be
+  // rounded through Number() first — naively stripping non-digits would merge "2301.0"
+  // into the wrong-length "23010" instead of the correct 4-digit "2301".
+  const digits = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(val)
+    ? String(Math.round(Number(val)))
+    : val.replace(/\D/g, "");
+  if (!/^\d+$/.test(digits)) return val;
+  if (digits.length === 4) return `0${digits}`;
+  if (digits.length === 5) return digits;
+  if (digits.length === 8) return `0${digits.slice(0, 4)}-${digits.slice(4)}`;
+  if (digits.length === 9) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  return val;
+}
+
+// Parse an Excel workbook (.xlsx/.xls/.xlsm) in-browser and return the first sheet
+// as CSV text, so it can flow through the same header-mapping pipeline as a real CSV.
+async function workbookBufferToCSV(buffer) {
+  const XLSX = await import("xlsx");
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  // raw:false forces every cell to its displayed text (not the underlying number/date),
+  // and blankrows:false drops fully-empty rows some spreadsheets pad between records with.
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "", blankrows: false });
+  const escapeCell = (v) => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return rows.map(row => row.map(escapeCell).join(",")).join("\n");
+}
+
+async function excelToCSV(file) {
+  return workbookBufferToCSV(await file.arrayBuffer());
+}
+
+function base64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function isExcelFile(name, contentType) {
+  return /\.(xlsx|xls|xlsm)$/i.test(name || "") ||
+    contentType?.includes("spreadsheetml") || contentType?.includes("ms-excel");
 }
 
 // Maps known column name patterns from the MA Special Request Voter Extract
@@ -154,12 +173,12 @@ const COLUMN_AUTO_MAP = [
   { keys: ["cityname","citytownname","city","town","municipality"],  field: "city" },
   { keys: ["county","countyname"],                                  field: "skip" },
   { keys: ["voterid","voter_id","voteridentification"],             field: "skip" },
-  { keys: ["party","partyaffiliation","partyaff","partycode"],      field: "party_affiliation" },
+  { keys: ["party","partyaffiliation","partyaff","partycode","pty"], field: "party_affiliation" },
   { keys: ["gender","sex"],                                         field: "skip" },
   { keys: ["dob","dateofbirth","birthdate","birthdate"],            field: "skip" },
   { keys: ["regdate","registrationdate","registrationdt"],          field: "skip" },
   { keys: ["ward","wardnumber","wardno"],                           field: "ward" },
-  { keys: ["precinct","precinctno","precinctnumber"],               field: "precinct" },
+  { keys: ["precinct","precinctno","precinctnumber","prec"],        field: "precinct" },
   { keys: ["congressionaldistrict","congressional"],                field: "skip" },
   { keys: ["sendistrict","senatorialdistrict","senatorial"],        field: "skip" },
   { keys: ["repdistrict","staterepresentativedistrict","representative"], field: "skip" },
@@ -326,7 +345,13 @@ export default function DataImport() {
   const handleLocalFile = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (f.name.endsWith(".zip")) {
+    if (isExcelFile(f.name)) {
+      setLoadingDrive(true); // reuse the same "working" spinner while the workbook parses
+      excelToCSV(f).then((csvText) => {
+        setLoadingDrive(false);
+        loadCSVText(csvText, f.name);
+      });
+    } else if (f.name.endsWith(".zip")) {
       const reader = new FileReader();
       reader.onload = async (ev) => {
         const binary = ev.target.result;
@@ -367,6 +392,9 @@ export default function DataImport() {
         setFile({ name: driveFile.name });
         setImportResult(null);
       }
+    } else if (isExcelFile(driveFile.name, contentType)) {
+      const csvText = await workbookBufferToCSV(base64ToArrayBuffer(base64));
+      loadCSVText(csvText, driveFile.name);
     } else {
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
@@ -403,6 +431,9 @@ export default function DataImport() {
         setZipFiles(csvs);
         setFile({ name: "drive-link.zip" });
       }
+    } else if (isExcelFile(driveLink, contentType)) {
+      const csvText = await workbookBufferToCSV(base64ToArrayBuffer(base64));
+      loadCSVText(csvText, "drive-file.xlsx");
     } else {
       const binary = atob(base64);
       // Decode as Latin-1 to handle Windows-1252 encoded state voter files
@@ -460,8 +491,8 @@ export default function DataImport() {
         if (field === "party_affiliation") {
           val = MA_PARTY_CODES[val.trim()] || val;
         }
-        if (field === "city" && isMaFormat) {
-          val = MA_CITY_TOWN[parseInt(val)] || val;
+        if (field === "zip") {
+          val = repairMangledZip(val);
         }
         record[field] = val;
       });
@@ -640,8 +671,8 @@ export default function DataImport() {
             <div className="text-center">
               <Upload className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
               <h3 className="text-lg font-display font-semibold mb-2">Upload Voter File</h3>
-              <p className="text-sm text-muted-foreground mb-4">Supports CSV, TXT, and ZIP files from your state voter database</p>
-              <input type="file" ref={fileRef} accept=".csv,.txt,.zip" onChange={handleLocalFile} className="hidden" />
+              <p className="text-sm text-muted-foreground mb-4">Supports CSV, TXT, ZIP, and Excel (XLSX/XLS/XLSM) files from your state voter database</p>
+              <input type="file" ref={fileRef} accept=".csv,.txt,.zip,.xlsx,.xls,.xlsm" onChange={handleLocalFile} className="hidden" />
               <Button onClick={() => fileRef.current?.click()} className="bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Upload className="w-4 h-4 mr-1.5" /> Choose File
               </Button>
