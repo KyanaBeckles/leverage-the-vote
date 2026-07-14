@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, AlertTriangle, Plus, HelpCircle } from "lucide-r
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
+import { matchVoterForSignature } from "@/utils/matchVoter";
 
 export default function SignatureEntryForm({ sheet, voters, campaignId, existingCount }) {
   const queryClient = useQueryClient();
@@ -18,34 +19,7 @@ export default function SignatureEntryForm({ sheet, voters, campaignId, existing
   });
 
   const checkVoterMatch = useCallback((name, address) => {
-    if (!name || name.length < 3) { setMatchResult(null); return; }
-    
-    const nameLower = name.toLowerCase().trim();
-    const matches = voters.filter(v => {
-      const voterName = (v.full_name || `${v.first_name || ""} ${v.last_name || ""}`).toLowerCase().trim();
-      return voterName.includes(nameLower) || nameLower.includes(voterName);
-    });
-
-    if (matches.length === 0) {
-      setMatchResult({ status: "unmatched", message: "No voter found with this name", voter: null });
-    } else if (matches.length === 1) {
-      const voter = matches[0];
-      const addressMatch = !address || !voter.address || 
-        voter.address.toLowerCase().includes(address.toLowerCase().trim());
-      setMatchResult({
-        status: addressMatch ? "matched" : "flagged",
-        message: addressMatch 
-          ? `Matched: ${voter.full_name || voter.first_name + " " + voter.last_name} · ${voter.address || "No address on file"}`
-          : `Address mismatch — voter file shows: ${voter.address}`,
-        voter,
-      });
-    } else {
-      setMatchResult({
-        status: "flagged",
-        message: `${matches.length} possible matches found — review manually`,
-        voter: matches[0],
-      });
-    }
+    setMatchResult(matchVoterForSignature(name, address, voters));
   }, [voters]);
 
   const handleNameChange = (name) => {

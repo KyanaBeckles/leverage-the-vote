@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, XCircle, AlertTriangle, FileText, Search, Plus, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import SignatureEntryForm from "../components/validation/SignatureEntryForm";
+import MatchPendingButton from "../components/validation/MatchPendingButton";
 
 export default function PetitionValidation() {
   const [selectedSheet, setSelectedSheet] = useState(null);
@@ -67,9 +68,12 @@ export default function PetitionValidation() {
 
   return (
     <div className="min-h-screen p-6 lg:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-display font-bold">Signature Validation</h1>
-        <p className="text-sm text-muted-foreground">Verify petition signatures against the voter file</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-bold">Signature Validation</h1>
+          <p className="text-sm text-muted-foreground">Verify petition signatures against the voter file</p>
+        </div>
+        <MatchPendingButton campaignId={campaign?.id} signatures={allSignatures} voters={voters} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-160px)]">
