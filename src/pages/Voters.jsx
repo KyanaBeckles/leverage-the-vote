@@ -46,7 +46,8 @@ export default function Voters() {
       v.last_name?.toLowerCase().includes(s) ||
       v.full_name?.toLowerCase().includes(s) ||
       v.address?.toLowerCase().includes(s);
-    const matchStatus = filterStatus === "all" || v.contact_status === filterStatus;
+    const matchStatus = filterStatus === "all" ||
+      (filterStatus === "unsigned" ? v.contact_status !== "signed" : v.contact_status === filterStatus);
     return matchSearch && matchStatus;
   });
 
@@ -87,6 +88,7 @@ export default function Voters() {
             <SelectItem value="undecided">Undecided</SelectItem>
             <SelectItem value="opposed">Opposed</SelectItem>
             <SelectItem value="signed">Signed</SelectItem>
+            <SelectItem value="unsigned">Unsigned</SelectItem>
           </SelectContent>
         </Select>
       </div>
