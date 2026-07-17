@@ -60,12 +60,6 @@ export default function PetitionValidation() {
     enabled: !!selectedSheet,
   });
 
-  const { data: voters = [] } = useQuery({
-    queryKey: ["voters", campaign?.id],
-    queryFn: () => campaign ? base44.entities.Voter.filter({ campaign_id: campaign.id }) : [],
-    enabled: !!campaign,
-  });
-
   return (
     <div className="min-h-screen p-6 lg:p-8">
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -73,7 +67,7 @@ export default function PetitionValidation() {
           <h1 className="text-2xl font-display font-bold">Signature Validation</h1>
           <p className="text-sm text-muted-foreground">Verify petition signatures against the voter file</p>
         </div>
-        <MatchPendingButton campaignId={campaign?.id} signatures={allSignatures} voters={voters} />
+        <MatchPendingButton campaignId={campaign?.id} signatures={allSignatures} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-160px)]">
@@ -144,9 +138,8 @@ export default function PetitionValidation() {
               </div>
 
               {/* Entry form */}
-              <SignatureEntryForm 
-                sheet={selectedSheet} 
-                voters={voters} 
+              <SignatureEntryForm
+                sheet={selectedSheet}
                 campaignId={campaign?.id}
                 existingCount={signatures.length}
               />

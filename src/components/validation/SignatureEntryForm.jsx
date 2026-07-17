@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,27 +9,46 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { matchVoterForSignature } from "@/utils/matchVoter";
+import { fetchCandidateVoters } from "@/utils/voterSearch";
 
-export default function SignatureEntryForm({ sheet, voters, campaignId, existingCount }) {
+export default function SignatureEntryForm({ sheet, campaignId, existingCount }) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [matchResult, setMatchResult] = useState(null);
+  const [checking, setChecking] = useState(false);
   const [form, setForm] = useState({
     signer_name: "", signer_address: "", signer_city: "", signer_zip: "", date_signed: "",
   });
 
-  const checkVoterMatch = useCallback((name, address) => {
-    setMatchResult(matchVoterForSignature(name, address, voters));
-  }, [voters]);
+  // Debounced voter-file lookup: fetch a small candidate set for the typed name
+  // (+ city) instead of matching against a preloaded statewide file.
+  const debounceRef = useRef(null);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  const checkVoterMatch = (name, address, city) => {
+    clearTimeout(debounceRef.current);
+    if (!name || name.trim().length < 3) { setMatchResult(null); setChecking(false); return; }
+    setChecking(true);
+    debounceRef.current = setTimeout(async () => {
+      const voters = await fetchCandidateVoters(campaignId, name, city);
+      setMatchResult(matchVoterForSignature(name, address, voters));
+      setChecking(false);
+    }, 600);
+  };
 
   const handleNameChange = (name) => {
     setForm(prev => ({ ...prev, signer_name: name }));
-    checkVoterMatch(name, form.signer_address);
+    checkVoterMatch(name, form.signer_address, form.signer_city);
   };
 
   const handleAddressChange = (address) => {
     setForm(prev => ({ ...prev, signer_address: address }));
-    checkVoterMatch(form.signer_name, address);
+    checkVoterMatch(form.signer_name, address, form.signer_city);
+  };
+
+  const handleCityChange = (city) => {
+    setForm(prev => ({ ...prev, signer_city: city }));
+    checkVoterMatch(form.signer_name, form.signer_address, city);
   };
 
   const handleSave = async () => {
@@ -88,7 +107,7 @@ export default function SignatureEntryForm({ sheet, voters, campaignId, existing
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">City</Label>
-            <Input value={form.signer_city} onChange={(e) => setForm({...form, signer_city: e.target.value})} />
+            <Input value={form.signer_city} onChange={(e) => handleCityChange(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">ZIP</Label>
@@ -101,7 +120,10 @@ export default function SignatureEntryForm({ sheet, voters, campaignId, existing
         </div>
 
         {/* Real-time match feedback */}
-        {matchResult && (
+        {checking && (
+          <p className="text-xs text-muted-foreground">Checking voter file…</p>
+        )}
+        {!checking && matchResult && (
           <div className={`flex items-start gap-2.5 p-3 rounded-lg text-sm ${
             matchResult.status === "matched" ? "bg-green-50 border border-green-200" :
             matchResult.status === "flagged" ? "bg-amber-50 border border-amber-200" :

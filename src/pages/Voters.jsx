@@ -22,10 +22,17 @@ const contactColors = {
 };
 
 export default function Voters() {
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 100;
+
+  // Debounce server-side search — each lookup is a real query against 9.5M rows.
+  React.useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 500);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const queryClient = useQueryClient();
 
@@ -35,23 +42,29 @@ export default function Voters() {
   });
   const campaign = campaigns[0];
 
-  const { data: voters = [] } = useQuery({
-    queryKey: ["voters", campaign?.id],
-    queryFn: () => campaign ? base44.entities.Voter.filter({ campaign_id: campaign.id }) : [],
+  // The statewide file is ~9.5M records — fetching it wholesale times out
+  // server-side. Browse shows a capped page; search queries the server by
+  // exact last name and/or city (the fields voter records index on).
+  const { data: voters = [], isFetching } = useQuery({
+    queryKey: ["voters", campaign?.id, search],
+    queryFn: async () => {
+      if (!campaign) return [];
+      const term = search.trim().toUpperCase();
+      if (!term || term.length < 2) {
+        return base44.entities.Voter.filter({ campaign_id: campaign.id }, "-created_date", 100);
+      }
+      const [byLast, byCity] = await Promise.all([
+        base44.entities.Voter.filter({ campaign_id: campaign.id, last_name: term }, "-created_date", 100).catch(() => []),
+        base44.entities.Voter.filter({ campaign_id: campaign.id, city: term }, "-created_date", 100).catch(() => []),
+      ]);
+      const seen = new Set();
+      return [...byLast, ...byCity].filter(v => !seen.has(v.id) && seen.add(v.id));
+    },
     enabled: !!campaign,
   });
 
-  const filtered = voters.filter(v => {
-    const s = search.toLowerCase();
-    const matchSearch = !search || 
-      v.first_name?.toLowerCase().includes(s) || 
-      v.last_name?.toLowerCase().includes(s) ||
-      v.full_name?.toLowerCase().includes(s) ||
-      v.address?.toLowerCase().includes(s);
-    const matchStatus = filterStatus === "all" ||
-      (filterStatus === "unsigned" ? v.contact_status !== "signed" : v.contact_status === filterStatus);
-    return matchSearch && matchStatus;
-  });
+  const filtered = voters.filter(v => filterStatus === "all" ||
+    (filterStatus === "unsigned" ? v.contact_status !== "signed" : v.contact_status === filterStatus));
 
   useEffect(() => { setCurrentPage(1); }, [search, filterStatus]);
 
@@ -65,7 +78,11 @@ export default function Voters() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-display font-bold">Voter File</h1>
-          <p className="text-sm text-muted-foreground">{voters.length.toLocaleString()} voters loaded</p>
+          <p className="text-sm text-muted-foreground">
+            {search.trim().length >= 2
+              ? `${filtered.length.toLocaleString()} result${filtered.length === 1 ? "" : "s"} for "${search.trim()}"${isFetching ? "…" : ""}`
+              : "Statewide MA voter file loaded — search by last name or city"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {voters.length > 0 && (
@@ -82,7 +99,7 @@ export default function Voters() {
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or address..." className="pl-9" />
+          <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder="Search by last name or city..." className="pl-9" />
         </div>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-40">
