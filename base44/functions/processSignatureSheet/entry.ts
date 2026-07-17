@@ -80,7 +80,14 @@ Return your response as JSON with this exact structure:
     });
 
     const extracted = result;
-    const sheetNumber = extracted.sheet_number || `DOC-${document_id.slice(-6)}`;
+    // A missing sheet number must fall back to a PER-DOCUMENT id. The AI often
+    // returns the string "null"/"N/A" for unnumbered sheets — using that as the
+    // sheet key merged 13 different physical sheets into one record, each upload
+    // overwriting the last (discovered 2026-07-17, data recovered by reprocessing).
+    const rawNumber = String(extracted.sheet_number ?? "").trim();
+    const sheetNumber = rawNumber && !["null", "none", "n/a", "not visible", "unknown"].includes(rawNumber.toLowerCase())
+      ? rawNumber
+      : `DOC-${document_id.slice(-6)}`;
     const sigCount = extracted.total_signatures_visible || extracted.signers?.length || 0;
     const side = extracted.side || "front";
 
