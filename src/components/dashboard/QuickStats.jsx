@@ -26,8 +26,8 @@ const stats = [
     href: "/ballot-engine",
   },
   {
-    label: "Signatures Validated",
-    sub: "certified by town clerks",
+    label: "Clerk Certified",
+    sub: "red-checked on sheets returned by town clerks",
     key: "certifiedCount",
     icon: BadgeCheck,
     iconBg: "bg-emerald-100",
@@ -36,8 +36,8 @@ const stats = [
     href: "/ballot-engine",
   },
   {
-    label: "Likely to Validate",
-    sub: "matched to an active voter, awaiting clerk",
+    label: "Matched",
+    sub: "software-matched to an active voter, awaiting clerk",
     key: "likelyCount",
     icon: UserCheck,
     iconBg: "bg-red-100",

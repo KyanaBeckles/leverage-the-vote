@@ -119,8 +119,9 @@ export default function PetitionValidation() {
     enabled: !!selectedSheet,
   });
 
-  // Manual clerk certification — for signatures the clerk checked off on the
-  // returned sheet that the automatic voter-file match didn't already catch.
+  // Transcribes the town clerk's certification from the returned sheet — the
+  // red checkmarks next to certified lines. Users don't certify anything
+  // themselves; matching is the software's job, certification is the clerk's.
   const certifyMutation = useMutation({
     mutationFn: ({ id, certified }) =>
       base44.entities.Signature.update(id, {
@@ -221,6 +222,7 @@ export default function PetitionValidation() {
                         <Button
                           variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground"
                           onClick={() => certifyMutation.mutate({ id: sig.id, certified: false })}
+                          title="Remove the recorded clerk certification (entered in error)"
                         >
                           Undo
                         </Button>
@@ -228,9 +230,9 @@ export default function PetitionValidation() {
                         <Button
                           variant="outline" size="sm" className="h-6 px-2 text-xs"
                           onClick={() => certifyMutation.mutate({ id: sig.id, certified: true })}
-                          title="Mark this signature as certified by the town clerk"
+                          title="Record the town clerk's certification — the red checkmark next to this line on the returned sheet"
                         >
-                          Certify
+                          Clerk ✓
                         </Button>
                       )}
                     </div>

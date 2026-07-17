@@ -41,24 +41,13 @@ export default function BallotEngine() {
     enabled: !!campaign,
   });
 
+  // Moving a sheet to "Certified" only records where the sheet is in the
+  // pipeline. Per-signature certification is the CLERK's act — it gets
+  // transcribed line-by-line from the red checkmarks on the returned sheet
+  // (Signature Validation → "Clerk ✓"), never inferred automatically.
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }) => {
-      await base44.entities.PetitionSheet.update(id, data);
-      // Clerk certification cascades: when a sheet reaches "certified", its
-      // voter-file-matched signatures become certified counts toward the threshold.
-      if (data.pipeline_status === "certified") {
-        const sheetSigs = await base44.entities.Signature.filter({ petition_sheet_id: id });
-        await Promise.all(
-          sheetSigs
-            .filter((s) => s.verification_status === "matched")
-            .map((s) => base44.entities.Signature.update(s.id, { verification_status: "certified" }))
-        );
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sheets"] });
-      queryClient.invalidateQueries({ queryKey: ["signatures"] });
-    },
+    mutationFn: ({ id, data }) => base44.entities.PetitionSheet.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sheets"] }),
   });
 
   const threshold = campaign?.signature_threshold || 0;
