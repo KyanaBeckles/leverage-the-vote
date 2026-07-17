@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Upload, MapPin, Filter } from "lucide-react";
+import { Search, Upload, MapPin, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,6 +24,8 @@ const contactColors = {
 export default function Voters() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 100;
 
   const queryClient = useQueryClient();
 
@@ -50,6 +52,13 @@ export default function Voters() {
       (filterStatus === "unsigned" ? v.contact_status !== "signed" : v.contact_status === filterStatus);
     return matchSearch && matchStatus;
   });
+
+  useEffect(() => { setCurrentPage(1); }, [search, filterStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * pageSize;
+  const pageRows = filtered.slice(pageStart, pageStart + pageSize);
 
   return (
     <div className="min-h-screen p-6 lg:p-8 max-w-[1400px]">
@@ -119,7 +128,7 @@ export default function Voters() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.slice(0, 100).map((voter) => (
+              {pageRows.map((voter) => (
                 <TableRow key={voter.id} className="cursor-pointer hover:bg-muted/50">
                   <TableCell className="font-medium text-sm">
                     {voter.full_name || [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ") || "—"}
@@ -140,9 +149,20 @@ export default function Voters() {
               ))}
             </TableBody>
           </Table>
-          {filtered.length > 100 && (
-            <div className="p-4 text-center text-sm text-muted-foreground border-t">
-              Showing 100 of {filtered.length.toLocaleString()} results
+          {filtered.length > pageSize && (
+            <div className="flex items-center justify-between p-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing {pageStart + 1}–{Math.min(pageStart + pageSize, filtered.length)} of {filtered.length.toLocaleString()}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
+                  <ChevronLeft className="w-4 h-4" /> Prev
+                </Button>
+                <span className="text-sm text-muted-foreground">Page {safePage} of {totalPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
+                  Next <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           )}
         </Card>
