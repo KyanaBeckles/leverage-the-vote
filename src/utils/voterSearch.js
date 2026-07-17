@@ -62,11 +62,37 @@ export function lastNameQueryVariants(name) {
   return variants;
 }
 
+// Boston neighborhoods appear as their own mailing cities in the voter file,
+// and signers write either one — search both. Signers also often write a ZIP
+// or "Dorchester MA 02124" in the city box; normalize before querying.
+const BOSTON_NEIGHBORHOODS = new Set([
+  "DORCHESTER", "ROXBURY", "MATTAPAN", "HYDE PARK", "JAMAICA PLAIN",
+  "ROSLINDALE", "BRIGHTON", "ALLSTON", "CHARLESTOWN", "EAST BOSTON",
+  "SOUTH BOSTON", "WEST ROXBURY", "DORCHESTER CENTER", "GROVE HALL",
+]);
+
+export function parseCityGuess(raw) {
+  const text = (raw || "").trim().toUpperCase();
+  if (!text) return { cities: [], zip: null };
+  const zipMatch = text.match(/\b(\d{5})\b/);
+  const zip = zipMatch ? zipMatch[1] : null;
+  // Drop state + zip fragments: "DORCHESTER MA 02124" → "DORCHESTER"
+  const city = text.replace(/\b\d{5}(-\d{4})?\b/g, "").replace(/\bMA\b\.?/g, "").replace(/[,.]/g, " ").replace(/\s+/g, " ").trim();
+  const cities = [];
+  if (city) {
+    cities.push(city);
+    if (BOSTON_NEIGHBORHOODS.has(city)) cities.push("BOSTON");
+    else if (city === "BOSTON") cities.push(...["DORCHESTER", "ROXBURY", "MATTAPAN", "HYDE PARK", "JAMAICA PLAIN", "ROSLINDALE", "BRIGHTON", "ALLSTON", "CHARLESTOWN", "EAST BOSTON", "SOUTH BOSTON", "WEST ROXBURY"]);
+  }
+  return { cities, zip };
+}
+
 export async function fetchCandidateVoters(campaignId, signerName, signerCity) {
   const variants = lastNameQueryVariants(signerName);
   if (!campaignId || variants.length === 0) return [];
 
-  const city = (signerCity || "").trim().toUpperCase();
+  const { cities, zip } = parseCityGuess(signerCity);
+  const city = cities[0] || "";
 
   // Fast path: Supabase mirror (currently Brockton). Millisecond queries.
   try {
@@ -83,16 +109,25 @@ export async function fetchCandidateVoters(campaignId, signerName, signerCity) {
   }
 
   // Statewide fallback: base44 Voter entity (slower, but covers all of MA).
+  // Try each surname variant against: each city guess, then the signer's ZIP,
+  // then statewide.
   try {
     for (const lastName of variants) {
-      if (city) {
+      for (const c of cities) {
         const withCity = await base44.entities.Voter.filter(
-          { campaign_id: campaignId, last_name: lastName, city },
+          { campaign_id: campaignId, last_name: lastName, city: c },
           "-created_date",
           200
         );
         if (withCity.length > 0) return withCity;
-        // City may be misspelled or abbreviated on the sheet — retry without it.
+      }
+      if (zip) {
+        const withZip = await base44.entities.Voter.filter(
+          { campaign_id: campaignId, last_name: lastName, zip },
+          "-created_date",
+          200
+        );
+        if (withZip.length > 0) return withZip;
       }
       const anywhere = await base44.entities.Voter.filter(
         { campaign_id: campaignId, last_name: lastName },
