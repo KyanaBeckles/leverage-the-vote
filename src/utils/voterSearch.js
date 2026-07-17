@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { firstNameCandidates } from "@/utils/matchVoter";
 
 // The statewide voter file is ~9.5M records, so the app must never fetch it
 // wholesale — unfiltered Voter queries hit the server's 20s limit. Matching
@@ -110,30 +111,50 @@ export async function fetchCandidateVoters(campaignId, signerName, signerCity) {
 
   // Statewide fallback: base44 Voter entity (slower, but covers all of MA).
   // Try each surname variant against: each city guess, then the signer's ZIP,
-  // then statewide.
+  // then statewide. Common surnames hit the 200-row cap and can silently drop
+  // the actual signer — when that happens, refine with exact first-name
+  // queries (including nickname expansions like Bill→WILLIAM).
+  const firstTok = (signerName || "").trim().split(/\s+/)[0] || "";
+  const refineByFirst = async (baseQuery) => {
+    const merged = [];
+    const seen = new Set();
+    for (const first of firstNameCandidates(firstTok)) {
+      const rows = await base44.entities.Voter.filter(
+        { ...baseQuery, first_name: first.toUpperCase() },
+        "-created_date",
+        200
+      ).catch(() => []);
+      for (const v of rows) if (!seen.has(v.id) && seen.add(v.id)) merged.push(v);
+    }
+    return merged;
+  };
+
   try {
     for (const lastName of variants) {
       for (const c of cities) {
-        const withCity = await base44.entities.Voter.filter(
-          { campaign_id: campaignId, last_name: lastName, city: c },
-          "-created_date",
-          200
-        );
+        const q = { campaign_id: campaignId, last_name: lastName, city: c };
+        const withCity = await base44.entities.Voter.filter(q, "-created_date", 200);
+        if (withCity.length >= 200) {
+          const refined = await refineByFirst(q);
+          if (refined.length > 0) return refined;
+        }
         if (withCity.length > 0) return withCity;
       }
       if (zip) {
-        const withZip = await base44.entities.Voter.filter(
-          { campaign_id: campaignId, last_name: lastName, zip },
-          "-created_date",
-          200
-        );
+        const q = { campaign_id: campaignId, last_name: lastName, zip };
+        const withZip = await base44.entities.Voter.filter(q, "-created_date", 200);
+        if (withZip.length >= 200) {
+          const refined = await refineByFirst(q);
+          if (refined.length > 0) return refined;
+        }
         if (withZip.length > 0) return withZip;
       }
-      const anywhere = await base44.entities.Voter.filter(
-        { campaign_id: campaignId, last_name: lastName },
-        "-created_date",
-        200
-      );
+      const q = { campaign_id: campaignId, last_name: lastName };
+      const anywhere = await base44.entities.Voter.filter(q, "-created_date", 200);
+      if (anywhere.length >= 200) {
+        const refined = await refineByFirst(q);
+        if (refined.length > 0) return refined;
+      }
       if (anywhere.length > 0) return anywhere;
     }
     return [];

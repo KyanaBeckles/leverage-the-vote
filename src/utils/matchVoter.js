@@ -27,12 +27,73 @@ function voterDisplay(v) {
   return `${name}${v.address ? ` · ${v.address}` : ""}${v.city ? `, ${v.city}` : ""}`;
 }
 
+// Common nickname → formal-name equivalences (lowercase). Signers write "Bill";
+// the voter file says "WILLIAM" — without this they never match.
+export const NICKNAMES = {
+  bill: ["william"], billy: ["william"], will: ["william"], willie: ["william"], liam: ["william"],
+  bob: ["robert"], bobby: ["robert"], rob: ["robert"], robbie: ["robert"],
+  jim: ["james"], jimmy: ["james"], jamie: ["james"],
+  mike: ["michael"], mikey: ["michael"],
+  steve: ["steven", "stephen"], stevie: ["steven", "stephen"],
+  tony: ["anthony"], tom: ["thomas"], tommy: ["thomas"],
+  dick: ["richard"], rick: ["richard"], richie: ["richard"], rich: ["richard"],
+  ted: ["edward", "theodore"], teddy: ["edward", "theodore"], ed: ["edward", "edwin"], eddie: ["edward", "edwin"], ned: ["edward"],
+  dan: ["daniel"], danny: ["daniel"], dave: ["david"], davey: ["david"],
+  chris: ["christopher", "christine", "christina", "christian"],
+  matt: ["matthew"], joe: ["joseph"], joey: ["joseph"],
+  jack: ["john", "jackson"], johnny: ["john"], jon: ["jonathan", "john"],
+  chuck: ["charles"], charlie: ["charles"], chas: ["charles"],
+  ken: ["kenneth"], kenny: ["kenneth"], larry: ["lawrence"],
+  jerry: ["gerald", "jerome"], terry: ["terence", "teresa", "theresa"],
+  pat: ["patrick", "patricia"], patty: ["patricia"], trish: ["patricia"],
+  peggy: ["margaret"], peg: ["margaret"], meg: ["margaret"], maggie: ["margaret"],
+  beth: ["elizabeth"], liz: ["elizabeth"], lizzie: ["elizabeth"], betty: ["elizabeth"], betsy: ["elizabeth"],
+  sue: ["susan", "suzanne"], susie: ["susan", "suzanne"],
+  kate: ["katherine", "kathleen", "kathryn"], katie: ["katherine", "kathleen", "kathryn"], kathy: ["katherine", "kathleen", "kathryn"], kitty: ["katherine"],
+  jen: ["jennifer"], jenny: ["jennifer"], becky: ["rebecca"],
+  alex: ["alexander", "alexandra", "alexis"], sandy: ["alexandra", "sandra"],
+  sam: ["samuel", "samantha"], sammy: ["samuel", "samantha"],
+  ben: ["benjamin"], benny: ["benjamin"], nick: ["nicholas"], nicky: ["nicholas", "nicole"],
+  andy: ["andrew"], drew: ["andrew"], greg: ["gregory"],
+  fred: ["frederick"], freddy: ["frederick"], ray: ["raymond"],
+  phil: ["philip", "phillip"], vince: ["vincent"], vinny: ["vincent"],
+  deb: ["deborah", "debra"], debbie: ["deborah", "debra"],
+  tim: ["timothy"], timmy: ["timothy"], don: ["donald"], donny: ["donald"],
+  ron: ["ronald"], ronnie: ["ronald"], doug: ["douglas"],
+  frank: ["francis", "franklin"], frankie: ["francis"],
+  hank: ["henry"], harry: ["harold", "henry"], gerry: ["gerald"],
+  walt: ["walter"], wally: ["walter"], gus: ["augustus", "gustave"],
+  abe: ["abraham"], al: ["albert", "alfred", "alan", "allen"],
+  art: ["arthur"], artie: ["arthur"], bert: ["albert", "robert", "herbert"],
+  cathy: ["catherine", "cathleen"], chrissy: ["christine", "christina"],
+  cindy: ["cynthia"], dolly: ["dorothy"], dot: ["dorothy"], dottie: ["dorothy"],
+  ellie: ["eleanor", "ellen"], gail: ["abigail"], abby: ["abigail"],
+  jackie: ["jacqueline", "jack"], jan: ["janet", "janice"],
+  josh: ["joshua"], lou: ["louis", "louise"], lucy: ["lucille", "lucia"],
+  mandy: ["amanda"], mel: ["melvin", "melissa"], mickey: ["michael"],
+  nate: ["nathan", "nathaniel"], norm: ["norman"], ollie: ["oliver"],
+  rosie: ["rose", "rosemary"], sally: ["sarah"], stan: ["stanley"],
+  toni: ["antonia", "antoinette"], vicky: ["victoria"], zack: ["zachary"], zach: ["zachary"],
+};
+
+export function firstNameCandidates(first) {
+  const f = (first || "").toLowerCase();
+  const out = new Set([f]);
+  for (const formal of NICKNAMES[f] || []) out.add(formal);
+  // Reverse: signer wrote the formal name, file has... file is formal; skip reverse.
+  return [...out].filter(Boolean);
+}
+
 function firstNameMatches(sigFirst, voterFirst) {
   if (!voterFirst) return false;
   if (sigFirst === voterFirst) return true;
-  // Initials and nicknames: "J" vs "JOHN", "Rob" vs "ROBERT"
+  // Initials: "J" vs "JOHN"
   if (sigFirst.length === 1 || voterFirst.length === 1) return sigFirst[0] === voterFirst[0];
-  return voterFirst.startsWith(sigFirst) || sigFirst.startsWith(voterFirst);
+  if (voterFirst.startsWith(sigFirst) || sigFirst.startsWith(voterFirst)) return true;
+  // Nicknames either direction: sheet "Bill" vs file "WILLIAM", sheet "William" vs file "BILL"
+  if ((NICKNAMES[sigFirst] || []).includes(voterFirst)) return true;
+  if ((NICKNAMES[voterFirst] || []).includes(sigFirst)) return true;
+  return false;
 }
 
 function addressMatches(sigAddress, voterAddress) {
