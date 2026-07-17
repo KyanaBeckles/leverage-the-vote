@@ -19,6 +19,8 @@ const contactColors = {
   undecided: "bg-blue-100 text-blue-700",
   opposed: "bg-red-100 text-red-700",
   signed: "bg-emerald-100 text-emerald-800",
+  needs_review: "bg-amber-100 text-amber-800",
+  not_in_file: "bg-red-100 text-red-700",
 };
 
 // Party names as stored by the statewide import (MA SOS code → name mapping)
@@ -32,7 +34,12 @@ const CONTACT_OPTIONS = [
   ["all", "All Contact"], ["unknown", "Unknown"], ["not_home", "Not Home"],
   ["supportive", "Supportive"], ["undecided", "Undecided"], ["opposed", "Opposed"],
   ["signed", "Signed"], ["unsigned", "Unsigned"],
+  ["flagged", "Needs Review"], ["no_match", "Not Matched"],
 ];
+
+// Filters answered from the Signature records rather than by browsing the
+// 9.5M-row voter file.
+const SIGNATURE_FILTERS = new Set(["signed", "flagged", "no_match"]);
 
 const EMPTY_FACETS = { last_name: "", city: "", zip: "", ward: "", precinct: "", party: "all", status: "all" };
 
@@ -75,21 +82,39 @@ export default function Voters() {
     queryKey: ["voters", campaign?.id, JSON.stringify(facets), contactFilter],
     queryFn: async () => {
       if (!campaign) return [];
-      // "Signed" can't be answered by browsing pages of a 9.5M-row file — the
-      // authoritative list comes from matched/certified signatures, which point
-      // at their voter records directly.
-      if (contactFilter === "signed") {
+      // Signature-derived filters can't be answered by browsing pages of a
+      // 9.5M-row file — the authoritative lists come from Signature records.
+      if (SIGNATURE_FILTERS.has(contactFilter)) {
         const sigs = await base44.entities.Signature.filter({ campaign_id: campaign.id });
-        const ids = [...new Set(
-          sigs
-            .filter(s => s.verification_status === "matched" || s.verification_status === "certified")
-            .map(s => s.matched_voter_id)
-            .filter(Boolean)
-        )];
+
+        if (contactFilter === "no_match") {
+          // No voter record exists — show the signature as written on the sheet.
+          return sigs
+            .filter(s => s.verification_status === "unmatched" || s.verification_status === "pending")
+            .map(s => ({
+              id: `sig-${s.id}`,
+              full_name: s.signer_name,
+              address: s.signer_address,
+              city: s.signer_city,
+              contact_status: "not_in_file",
+              _fromSignature: true,
+            }));
+        }
+
+        const wanted = contactFilter === "signed"
+          ? ["matched", "certified"]
+          : ["flagged"];
+        const matching = sigs.filter(s => wanted.includes(s.verification_status));
+        const reasonById = new Map(matching.map(s => [s.matched_voter_id, s.flag_reason]));
+        const ids = [...new Set(matching.map(s => s.matched_voter_id).filter(Boolean))];
         const fetched = await Promise.all(
           ids.map(id => base44.entities.Voter.get(id).catch(() => null))
         );
-        return fetched.filter(Boolean);
+        return fetched.filter(Boolean).map(v =>
+          contactFilter === "flagged"
+            ? { ...v, contact_status: "needs_review", _flagReason: reasonById.get(v.id) || "" }
+            : v
+        );
       }
       const query = { campaign_id: campaign.id };
       const f = facets;
@@ -106,14 +131,14 @@ export default function Voters() {
     enabled: !!campaign,
   });
 
-  // "signed" is already exact from the server; other contact filters apply to
-  // the fetched page client-side.
-  const filtered = voters.filter(v => contactFilter === "all" || contactFilter === "signed" ||
+  // Signature-derived filters are already exact from the server; other contact
+  // filters apply to the fetched page client-side.
+  const filtered = voters.filter(v => contactFilter === "all" || SIGNATURE_FILTERS.has(contactFilter) ||
     (contactFilter === "unsigned" ? v.contact_status !== "signed" : v.contact_status === contactFilter));
 
   const sorted = useMemo(() => {
     const keyFns = {
-      last_name: (v) => `${v.last_name || ""} ${v.first_name || ""}`,
+      last_name: (v) => v.last_name ? `${v.last_name} ${v.first_name || ""}` : (v.full_name || ""),
       address: (v) => `${v.street_name || ""} ${v.street_number || ""}`,
       city: (v) => v.city || "",
       ward: (v) => `${v.ward || ""}-${v.precinct || ""}`,
@@ -306,7 +331,7 @@ export default function Voters() {
                       {voter.voter_status || "?"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell title={voter._flagReason || undefined}>
                     <Badge className={`text-[10px] px-1.5 py-0 ${contactColors[voter.contact_status] || ""}`}>
                       {(voter.contact_status || "unknown").replace(/_/g, " ")}
                     </Badge>
