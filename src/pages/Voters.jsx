@@ -48,7 +48,7 @@ export default function Voters() {
   const [sort, setSort] = useState({ key: "last_name", dir: "asc" });
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(true);
-  const pageSize = 100;
+  const pageSize = 15;
 
   // Debounce: every facet change is a real server query against 9.5M rows.
   useEffect(() => {
