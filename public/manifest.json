@@ -1,0 +1,13 @@
+{
+  "name": "Leverage the Vote",
+  "short_name": "LeverageVote",
+  "description": "Ballot access campaign manager — petition tracking, signature validation, and voter file tools.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b2b4d",
+  "theme_color": "#1b2b4d",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
