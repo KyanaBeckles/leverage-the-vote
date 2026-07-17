@@ -42,8 +42,23 @@ export default function BallotEngine() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.PetitionSheet.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sheets"] }),
+    mutationFn: async ({ id, data }) => {
+      await base44.entities.PetitionSheet.update(id, data);
+      // Clerk certification cascades: when a sheet reaches "certified", its
+      // voter-file-matched signatures become certified counts toward the threshold.
+      if (data.pipeline_status === "certified") {
+        const sheetSigs = await base44.entities.Signature.filter({ petition_sheet_id: id });
+        await Promise.all(
+          sheetSigs
+            .filter((s) => s.verification_status === "matched")
+            .map((s) => base44.entities.Signature.update(s.id, { verification_status: "certified" }))
+        );
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sheets"] });
+      queryClient.invalidateQueries({ queryKey: ["signatures"] });
+    },
   });
 
   const threshold = campaign?.signature_threshold || 0;

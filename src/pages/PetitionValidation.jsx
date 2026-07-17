@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle, AlertTriangle, FileText, Search, Plus, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, FileText, Search, Plus, HelpCircle, BadgeCheck } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import SignatureEntryForm from "../components/validation/SignatureEntryForm";
 import MatchPendingButton from "../components/validation/MatchPendingButton";
@@ -58,6 +59,19 @@ export default function PetitionValidation() {
     queryKey: ["signatures", selectedSheet?.id],
     queryFn: () => selectedSheet ? base44.entities.Signature.filter({ petition_sheet_id: selectedSheet.id }) : [],
     enabled: !!selectedSheet,
+  });
+
+  // Manual clerk certification — for signatures the clerk checked off on the
+  // returned sheet that the automatic voter-file match didn't already catch.
+  const certifyMutation = useMutation({
+    mutationFn: ({ id, certified }) =>
+      base44.entities.Signature.update(id, {
+        verification_status: certified ? "certified" : "matched",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["signatures", selectedSheet?.id] });
+      queryClient.invalidateQueries({ queryKey: ["allSignatures", campaign?.id] });
+    },
   });
 
   return (
@@ -155,10 +169,27 @@ export default function PetitionValidation() {
                       <span className="text-xs text-muted-foreground w-6">#{sig.line_number}</span>
                       <span className="font-medium flex-1">{sig.signer_name}</span>
                       <span className="text-xs text-muted-foreground flex-1 truncate">{sig.signer_address}</span>
+                      {sig.verification_status === "certified" && <BadgeCheck className="w-4 h-4 text-emerald-600" />}
                       {sig.verification_status === "matched" && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                       {sig.verification_status === "unmatched" && <XCircle className="w-4 h-4 text-red-500" />}
                       {sig.verification_status === "flagged" && <AlertTriangle className="w-4 h-4 text-amber-500" />}
                       {sig.verification_status === "pending" && <div className="w-4 h-4 rounded-full bg-muted" />}
+                      {sig.verification_status === "certified" ? (
+                        <Button
+                          variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground"
+                          onClick={() => certifyMutation.mutate({ id: sig.id, certified: false })}
+                        >
+                          Undo
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline" size="sm" className="h-6 px-2 text-xs"
+                          onClick={() => certifyMutation.mutate({ id: sig.id, certified: true })}
+                          title="Mark this signature as certified by the town clerk"
+                        >
+                          Certify
+                        </Button>
+                      )}
                     </div>
                   ))}
                   {signatures.length === 0 && (
