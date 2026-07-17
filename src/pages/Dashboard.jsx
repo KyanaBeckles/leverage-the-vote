@@ -134,6 +134,12 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-8">
 
+        {/* Ballot access progress — the number that decides everything else */}
+        <section>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Ballot Access Progress</p>
+          <SignatureTracker campaign={campaign} sheets={sheets} />
+        </section>
+
         {/* Stats */}
         <section>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Overview</p>
@@ -172,7 +178,6 @@ export default function Dashboard() {
                   memberCount={members.length}
                   sheetCount={sheets.length}
                 />
-                <SignatureTracker campaign={campaign} sheets={sheets} />
               </div>
             </section>
           </div>

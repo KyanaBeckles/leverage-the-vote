@@ -72,9 +72,25 @@ export default function Voters() {
   );
 
   const { data: voters = [], isFetching } = useQuery({
-    queryKey: ["voters", campaign?.id, JSON.stringify(facets)],
+    queryKey: ["voters", campaign?.id, JSON.stringify(facets), contactFilter],
     queryFn: async () => {
       if (!campaign) return [];
+      // "Signed" can't be answered by browsing pages of a 9.5M-row file — the
+      // authoritative list comes from matched/certified signatures, which point
+      // at their voter records directly.
+      if (contactFilter === "signed") {
+        const sigs = await base44.entities.Signature.filter({ campaign_id: campaign.id });
+        const ids = [...new Set(
+          sigs
+            .filter(s => s.verification_status === "matched" || s.verification_status === "certified")
+            .map(s => s.matched_voter_id)
+            .filter(Boolean)
+        )];
+        const fetched = await Promise.all(
+          ids.map(id => base44.entities.Voter.get(id).catch(() => null))
+        );
+        return fetched.filter(Boolean);
+      }
       const query = { campaign_id: campaign.id };
       const f = facets;
       if (f.last_name.trim()) query.last_name = f.last_name.trim().toUpperCase();
@@ -90,7 +106,9 @@ export default function Voters() {
     enabled: !!campaign,
   });
 
-  const filtered = voters.filter(v => contactFilter === "all" ||
+  // "signed" is already exact from the server; other contact filters apply to
+  // the fetched page client-side.
+  const filtered = voters.filter(v => contactFilter === "all" || contactFilter === "signed" ||
     (contactFilter === "unsigned" ? v.contact_status !== "signed" : v.contact_status === contactFilter));
 
   const sorted = useMemo(() => {
