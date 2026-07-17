@@ -15,7 +15,11 @@ import { fetchCandidateVoters, extractLastName } from "@/utils/voterSearch";
 // Candidates are fetched per-signer (last_name + city) rather than loading the
 // ~9.5M-record statewide file, with a small cache so repeated names on the same
 // sheet don't refetch.
-export default function MatchPendingButton({ campaignId, signatures }) {
+//
+// The city used for matching is the SHEET's town (from the certification
+// section at the bottom of the physical sheet — it governs every signature on
+// it); the signer's own city scribble is only a fallback.
+export default function MatchPendingButton({ campaignId, signatures, sheets = [] }) {
   const queryClient = useQueryClient();
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -28,11 +32,14 @@ export default function MatchPendingButton({ campaignId, signatures }) {
     let matched = 0, flagged = 0, unmatched = 0, skipped = 0, done = 0;
     const candidateCache = new Map();
 
+    const townBySheet = new Map(sheets.map((s) => [s.id, s.town_clerk]));
+
     for (const sig of pending) {
-      const cacheKey = `${extractLastName(sig.signer_name) || ""}|${(sig.signer_city || "").trim().toUpperCase()}`;
+      const cityGuess = townBySheet.get(sig.petition_sheet_id) || sig.signer_city;
+      const cacheKey = `${extractLastName(sig.signer_name) || ""}|${(cityGuess || "").trim().toUpperCase()}`;
       let voters = candidateCache.get(cacheKey);
       if (!voters) {
-        voters = await fetchCandidateVoters(campaignId, sig.signer_name, sig.signer_city);
+        voters = await fetchCandidateVoters(campaignId, sig.signer_name, cityGuess);
         candidateCache.set(cacheKey, voters);
       }
 

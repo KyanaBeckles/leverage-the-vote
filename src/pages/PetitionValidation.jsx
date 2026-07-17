@@ -139,7 +139,7 @@ export default function PetitionValidation() {
           <h1 className="text-2xl font-display font-bold">Signature Validation</h1>
           <p className="text-sm text-muted-foreground">Verify petition signatures against the voter file</p>
         </div>
-        <MatchPendingButton campaignId={campaign?.id} signatures={allSignatures} />
+        <MatchPendingButton campaignId={campaign?.id} signatures={allSignatures} sheets={sheets} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-160px)]">

@@ -24,19 +24,21 @@ This petition sheet has either a FRONT side (7 signature lines) or a BACK side (
 Please extract ALL the information you can see, including:
 1. Whether this appears to be the FRONT (7 lines) or BACK (17 lines) of the sheet
 2. A sheet/petition number if visible anywhere on the page
-3. For each signature line that has been filled in, extract:
+3. The sheet's City or Town: near the BOTTOM of the page there is a certification section naming the municipality this sheet belongs to (e.g. "City/Town of ___"). This governs every signature on the sheet — read it carefully.
+4. For each signature line that has been filled in, extract:
    - Line number
    - Signer name (printed or cursive)
    - Address
    - City/Town
    - Date signed
-4. Total count of filled signature lines you can see
-5. Any collector/circulator name if shown
+5. Total count of filled signature lines you can see
+6. Any collector/circulator name if shown
 
 Return your response as JSON with this exact structure:
 {
   "side": "front" or "back",
   "sheet_number": "string or null",
+  "sheet_city_town": "string or null",
   "circulator_name": "string or null",
   "total_signatures_visible": number,
   "signers": [
@@ -59,6 +61,7 @@ Return your response as JSON with this exact structure:
         properties: {
           side: { type: "string" },
           sheet_number: { type: "string" },
+          sheet_city_town: { type: "string" },
           circulator_name: { type: "string" },
           total_signatures_visible: { type: "number" },
           signers: {
@@ -90,6 +93,10 @@ Return your response as JSON with this exact structure:
       : `DOC-${document_id.slice(-6)}`;
     const sigCount = extracted.total_signatures_visible || extracted.signers?.length || 0;
     const side = extracted.side || "front";
+    // The bottom-of-sheet certification names the municipality; it governs
+    // every signature on the sheet, so it drives voter-file matching.
+    const rawTown = String(extracted.sheet_city_town ?? "").trim().toUpperCase().replace(/^(CITY|TOWN) OF /, "");
+    const sheetTown = rawTown && !["NULL", "NONE", "N/A", "NOT VISIBLE", "UNKNOWN"].includes(rawTown) ? rawTown : null;
 
     // Find or create a PetitionSheet record
     const existingSheets = await base44.entities.PetitionSheet.filter({ campaign_id, sheet_number: sheetNumber });
@@ -104,6 +111,7 @@ Return your response as JSON with this exact structure:
         ai_extracted_data: JSON.stringify(extracted),
         pipeline_status: "scanned",
       };
+      if (sheetTown && !sheetRecord.town_clerk) updateData.town_clerk = sheetTown;
       if (side === "front") updateData.scan_url_front = doc.file_url;
       else updateData.scan_url_back = doc.file_url;
 
@@ -120,6 +128,7 @@ Return your response as JSON with this exact structure:
         issued_date: new Date().toISOString().split("T")[0],
         notes: extracted.notes || "",
       };
+      if (sheetTown) createData.town_clerk = sheetTown;
       if (side === "front") createData.scan_url_front = doc.file_url;
       else createData.scan_url_back = doc.file_url;
       if (extracted.circulator_name) createData.assigned_to_name = extracted.circulator_name;

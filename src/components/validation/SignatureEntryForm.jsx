@@ -30,7 +30,9 @@ export default function SignatureEntryForm({ sheet, campaignId, existingCount })
     if (!name || name.trim().length < 3) { setMatchResult(null); setChecking(false); return; }
     setChecking(true);
     debounceRef.current = setTimeout(async () => {
-      const voters = await fetchCandidateVoters(campaignId, name, city);
+      // The sheet's town (bottom-of-sheet certification) beats whatever the
+      // signer wrote in their city box.
+      const voters = await fetchCandidateVoters(campaignId, name, sheet?.town_clerk || city);
       setMatchResult(matchVoterForSignature(name, address, voters));
       setChecking(false);
     }, 600);
