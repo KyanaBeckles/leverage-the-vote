@@ -13,6 +13,64 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import SignatureEntryForm from "../components/validation/SignatureEntryForm";
 import MatchPendingButton from "../components/validation/MatchPendingButton";
 
+// Scans are stored per side (scan_url_front / scan_url_back, plus legacy
+// scan_url on older sheets). Shows whichever sides exist with a toggle.
+function SheetScanViewer({ sheet }) {
+  const [side, setSide] = useState("front");
+
+  const scans = [];
+  if (sheet?.scan_url_front || sheet?.scan_url) {
+    scans.push({ key: "front", label: "Front", url: sheet.scan_url_front || sheet.scan_url });
+  }
+  if (sheet?.scan_url_back) {
+    scans.push({ key: "back", label: "Back", url: sheet.scan_url_back });
+  }
+
+  const active = scans.find(s => s.key === side) || scans[0];
+
+  if (!sheet || scans.length === 0) {
+    return (
+      <Card className="flex-1 border-dashed bg-muted/30">
+        <CardContent className="h-full flex flex-col items-center justify-center text-center p-6">
+          <FileText className="w-12 h-12 text-muted-foreground/30 mb-3" />
+          <p className="text-sm text-muted-foreground">
+            {sheet ? "No scan uploaded for this sheet" : "Select a petition sheet to begin validation"}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="flex-1 overflow-hidden flex flex-col">
+      {scans.length > 1 && (
+        <div className="flex gap-1 p-2 border-b">
+          {scans.map(s => (
+            <Button
+              key={s.key}
+              variant={active?.key === s.key ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-3 text-xs"
+              onClick={() => setSide(s.key)}
+            >
+              {s.label}
+            </Button>
+          ))}
+        </div>
+      )}
+      <CardContent className="p-0 flex-1 min-h-0">
+        <a href={active.url} target="_blank" rel="noreferrer" title="Open full size in a new tab">
+          <img
+            src={active.url}
+            alt={`Petition scan — ${active.label.toLowerCase()}`}
+            className="w-full h-full object-contain bg-muted"
+          />
+        </a>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PetitionValidation() {
   const [selectedSheet, setSelectedSheet] = useState(null);
   const queryClient = useQueryClient();
@@ -107,22 +165,7 @@ export default function PetitionValidation() {
             </CardContent>
           </Card>
 
-          {selectedSheet?.scan_url ? (
-            <Card className="flex-1 overflow-hidden">
-              <CardContent className="p-0 h-full">
-                <img src={selectedSheet.scan_url} alt="Petition scan" className="w-full h-full object-contain bg-muted" />
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="flex-1 border-dashed bg-muted/30">
-              <CardContent className="h-full flex flex-col items-center justify-center text-center p-6">
-                <FileText className="w-12 h-12 text-muted-foreground/30 mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  {selectedSheet ? "No scan uploaded for this sheet" : "Select a petition sheet to begin validation"}
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <SheetScanViewer sheet={selectedSheet} />
         </div>
 
         {/* Right: Data entry & verification */}
