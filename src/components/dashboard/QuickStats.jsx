@@ -23,7 +23,7 @@ const stats = [
     iconBg: "bg-amber-100",
     iconColor: "text-amber-600",
     border: "border-l-amber-500",
-    href: "/validation",
+    href: "/ballot-engine",
   },
   {
     label: "Signatures Validated",
@@ -43,7 +43,7 @@ const stats = [
     iconBg: "bg-red-100",
     iconColor: "text-red-600",
     border: "border-l-red-400",
-    href: "/validation",
+    href: "/petition-validation",
   },
 ];
 
