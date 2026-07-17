@@ -5,6 +5,23 @@ import { base44 } from "@/api/base44Client";
 // instead pulls a small candidate set per signer with an indexed-style filter
 // on last_name (+ city when known). Voter names/cities are stored UPPERCASE,
 // and multi-word surnames keep their space ("LA VOIX").
+//
+// Brockton (the current field focus) is mirrored in a Supabase Postgres table
+// with real indexes — those lookups return in milliseconds, so it's tried
+// first; anything it can't answer falls back to the statewide base44 file.
+
+const SUPABASE_URL = "https://zdxhbtvvcnxicbhgelao.supabase.co";
+const SUPABASE_KEY = "sb_publishable_iOXQl3OSW3M56U72_k7now_fvHOyWAY"; // read-only (RLS)
+
+async function supabaseCandidates(lastName, city) {
+  const params = new URLSearchParams({ last_name: `eq.${lastName}`, limit: "200" });
+  if (city) params.set("city", `eq.${city}`);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/voters?${params}`, {
+    headers: { apikey: SUPABASE_KEY },
+  });
+  if (!res.ok) throw new Error(`supabase ${res.status}`);
+  return res.json(); // rows share field names with base44 Voter (last_name, first_name, address, city, voter_status)
+}
 
 const NAME_SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
 const SURNAME_PREFIXES = ["LA", "LE", "DE", "DI", "DA", "DEL", "VAN", "VON", "MC", "MAC", "ST"];
@@ -50,6 +67,22 @@ export async function fetchCandidateVoters(campaignId, signerName, signerCity) {
   if (!campaignId || variants.length === 0) return [];
 
   const city = (signerCity || "").trim().toUpperCase();
+
+  // Fast path: Supabase mirror (currently Brockton). Millisecond queries.
+  try {
+    for (const lastName of variants) {
+      if (city) {
+        const withCity = await supabaseCandidates(lastName, city);
+        if (withCity.length > 0) return withCity;
+      }
+      const anywhere = await supabaseCandidates(lastName, null);
+      if (anywhere.length > 0) return anywhere;
+    }
+  } catch {
+    // Supabase unreachable — fall through to base44.
+  }
+
+  // Statewide fallback: base44 Voter entity (slower, but covers all of MA).
   try {
     for (const lastName of variants) {
       if (city) {
