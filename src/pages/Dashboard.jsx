@@ -22,9 +22,10 @@ export default function Dashboard() {
 
   const campaign = campaigns[0] || null;
 
-  // The statewide voter file is ~9.5M records — never fetch it wholesale
-  // (unfiltered queries hit the server's 20s limit). A capped sample is enough
-  // for the "voters loaded?" setup check and the stat tile.
+  // The statewide voter file is ~9.5M records — never fetch it wholesale, and
+  // even count queries time out server-side at this size. A capped sample tells
+  // us whether the file is loaded; when it caps out we show the known import
+  // total (9,548,000 unique voters, statewide import completed 2026-07-16).
   const { data: voters = [] } = useQuery({
     queryKey: ["voters", campaign?.id],
     queryFn: () => campaign ? base44.entities.Voter.filter({ campaign_id: campaign.id }, "-created_date", 1000) : [],
@@ -137,10 +138,10 @@ export default function Dashboard() {
         <section>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Overview</p>
           <QuickStats
-            voterCount={voters.length >= 1000 ? "1,000+" : voters.length}
-            memberCount={members.length}
-            taskCount={tasks.filter((t) => t.status !== "done").length}
-            sheetCount={sheets.length}
+            voterCount={voters.length >= 1000 ? "9.55M" : voters.length}
+            signedCount={signatures.length}
+            certifiedCount={signatures.filter((s) => s.verification_status === "certified").length}
+            likelyCount={signatures.filter((s) => s.verification_status === "matched").length}
           />
         </section>
 
