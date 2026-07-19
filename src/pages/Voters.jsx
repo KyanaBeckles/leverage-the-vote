@@ -6,11 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Upload, MapPin, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, X, SlidersHorizontal } from "lucide-react";
+import { Search, Upload, MapPin, Filter, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, X, SlidersHorizontal, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import ClearVotersButton from "@/components/import/ClearVotersButton";
+import { generateWalkListPdf } from "@/lib/walkListPdf";
 
 const contactColors = {
   unknown: "bg-slate-100 text-slate-600",
@@ -169,6 +170,34 @@ export default function Voters() {
   const hasFilters = activeFacetEntries.length > 0 || contactFilter !== "all";
   const atCap = voters.length >= 500;
 
+  // One-line description of the active facets/contact filter, reused as the
+  // PDF subheader so a printed walk list still shows what it was scoped to.
+  const filterSummaryText = () => {
+    const parts = activeFacetEntries.map(([key, value]) => `${FACET_LABELS[key]}: ${value}`);
+    if (contactFilter !== "all") {
+      const label = CONTACT_OPTIONS.find(([v]) => v === contactFilter)?.[1] || contactFilter;
+      parts.push(`Contact: ${label}`);
+    }
+    return parts.length > 0 ? `Filters — ${parts.join(" · ")}` : "No filters applied — full result set";
+  };
+
+  // "Not Matched" rows are raw signatures without a voter-file match — not
+  // real voters to send a canvasser to, so exporting them is disabled.
+  const exportDisabled = sorted.length === 0 || contactFilter === "no_match";
+  const exportDisabledReason =
+    contactFilter === "no_match"
+      ? "Not Matched rows are signatures, not voters — switch filters to export a walk list"
+      : "No results to export — adjust your filters";
+
+  const handleExportWalkList = () => {
+    if (exportDisabled) return;
+    generateWalkListPdf({
+      campaignName: campaign?.name || campaign?.candidate_name,
+      filterSummary: filterSummaryText(),
+      rows: sorted,
+    });
+  };
+
   const SortHeader = ({ colKey, children }) => {
     const is = sort.key === colKey;
     return (
@@ -202,6 +231,11 @@ export default function Voters() {
           <Button variant="outline" onClick={() => setShowFilters(v => !v)}>
             <SlidersHorizontal className="w-4 h-4 mr-1.5" /> Filters
           </Button>
+          <span title={exportDisabled ? exportDisabledReason : undefined}>
+            <Button variant="outline" onClick={handleExportWalkList} disabled={exportDisabled}>
+              <Download className="w-4 h-4 mr-1.5" /> Export Walk List (PDF)
+            </Button>
+          </span>
           {voters.length > 0 && (
             <ClearVotersButton campaignId={campaign?.id} onCleared={() => queryClient.invalidateQueries({ queryKey: ["voters"] })} />
           )}
