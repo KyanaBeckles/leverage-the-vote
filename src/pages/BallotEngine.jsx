@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, FileText, ArrowRight, Target, Camera, Image } from "lucide-react";
+import { Plus, FileText, ArrowRight, Target, Camera, Image, FileDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import PetitionSheetDialog from "../components/ballot/PetitionSheetDialog";
 import PetitionSheetCard from "../components/ballot/PetitionSheetCard";
+import ClerkPacketDialog from "../components/ballot/ClerkPacketDialog";
 
 const pipelineColumns = [
   { key: "blank_issued", label: "Blank Issued", color: "bg-slate-400" },
@@ -32,6 +33,7 @@ const statusBadge = {
 export default function BallotEngine() {
   const [showDialog, setShowDialog] = useState(false);
   const [editSheet, setEditSheet] = useState(null);
+  const [showClerkPacket, setShowClerkPacket] = useState(false);
   // "sheets" = the working inventory of every scanned sheet; "pipeline" = kanban.
   const [view, setView] = useState("sheets");
   const queryClient = useQueryClient();
@@ -88,13 +90,20 @@ export default function BallotEngine() {
       </div>
 
       {/* View toggle */}
-      <div className="flex gap-1 mb-6">
-        <Button variant={view === "sheets" ? "default" : "ghost"} size="sm" onClick={() => setView("sheets")}>
-          All Sheets
-        </Button>
-        <Button variant={view === "pipeline" ? "default" : "ghost"} size="sm" onClick={() => setView("pipeline")}>
-          Pipeline Board
-        </Button>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex gap-1">
+          <Button variant={view === "sheets" ? "default" : "ghost"} size="sm" onClick={() => setView("sheets")}>
+            All Sheets
+          </Button>
+          <Button variant={view === "pipeline" ? "default" : "ghost"} size="sm" onClick={() => setView("pipeline")}>
+            Pipeline Board
+          </Button>
+        </div>
+        {view === "sheets" && (
+          <Button variant="outline" size="sm" onClick={() => setShowClerkPacket(true)}>
+            <FileDown className="w-4 h-4 mr-1.5" /> Clerk Packet
+          </Button>
+        )}
       </div>
 
       {/* Clerk Tracking Dashboard */}
@@ -244,6 +253,14 @@ export default function BallotEngine() {
         onOpenChange={setShowDialog}
         sheet={editSheet}
         campaignId={campaign?.id}
+      />
+
+      <ClerkPacketDialog
+        open={showClerkPacket}
+        onOpenChange={setShowClerkPacket}
+        campaign={campaign}
+        sheets={sheets}
+        signatures={signatures}
       />
     </div>
   );
