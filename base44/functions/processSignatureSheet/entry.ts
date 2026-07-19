@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { document_id, campaign_id } = await req.json();
+    const { document_id, campaign_id, pair_id } = await req.json();
     if (!document_id || !campaign_id) {
       return Response.json({ error: 'document_id and campaign_id are required' }, { status: 400 });
     }
@@ -87,10 +87,17 @@ Return your response as JSON with this exact structure:
     // returns the string "null"/"N/A" for unnumbered sheets — using that as the
     // sheet key merged 13 different physical sheets into one record, each upload
     // overwriting the last (discovered 2026-07-17, data recovered by reprocessing).
+    // When the caller supplies a pair_id (front+back photos of the same physical
+    // sheet uploaded together), an unreadable number falls back to a PAIR- key
+    // shared by both sides instead of a per-document DOC- key, so the front and
+    // back scans merge into a single PetitionSheet record. A readable number on
+    // the page still wins over the pair fallback.
     const rawNumber = String(extracted.sheet_number ?? "").trim();
+    const rawPairId = String(pair_id ?? "").trim();
+    const fallbackNumber = rawPairId ? `PAIR-${rawPairId}` : `DOC-${document_id.slice(-6)}`;
     const sheetNumber = rawNumber && !["null", "none", "n/a", "not visible", "unknown"].includes(rawNumber.toLowerCase())
       ? rawNumber
-      : `DOC-${document_id.slice(-6)}`;
+      : fallbackNumber;
     const sigCount = extracted.total_signatures_visible || extracted.signers?.length || 0;
     const side = extracted.side || "front";
     // The bottom-of-sheet certification names the municipality; it governs

@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, CheckCircle, Clock, Camera, Sparkles, Link2, ChevronDown, ChevronUp } from "lucide-react";
+import { FileText, CheckCircle, Clock, Camera, Sparkles, Link2, ChevronDown, ChevronUp, Layers } from "lucide-react";
 import CameraCapture from "@/components/capture/CameraCapture";
+import PairedCapture from "@/components/capture/PairedCapture";
 import DocumentProcessResult from "@/components/documents/DocumentProcessResult";
 
 const CATEGORY_LABELS = {
@@ -22,6 +23,7 @@ const CONFIDENCE_COLORS = {
 
 export default function Documents() {
   const [showCamera, setShowCamera] = useState(false);
+  const [showPaired, setShowPaired] = useState(false);
   const [processingId, setProcessingId] = useState(null);
   const [processResults, setProcessResults] = useState({}); // doc.id -> result
   const queryClient = useQueryClient();
@@ -73,6 +75,12 @@ export default function Documents() {
               {pendingCount} pending review
             </span>
           )}
+          <button
+            onClick={() => setShowPaired(true)}
+            className="flex items-center gap-2 border border-input px-4 py-2 rounded-lg text-sm font-semibold hover:bg-muted"
+          >
+            <Layers className="w-4 h-4" /> Paired Upload (Front + Back)
+          </button>
           <button
             onClick={() => setShowCamera(true)}
             className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold"
@@ -211,6 +219,18 @@ export default function Documents() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["documents"] });
             setShowCamera(false);
+          }}
+        />
+      )}
+
+      {showPaired && activeCampaign && (
+        <PairedCapture
+          campaignId={activeCampaign.id}
+          onClose={() => setShowPaired(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            queryClient.invalidateQueries({ queryKey: ["sheets"] });
+            queryClient.invalidateQueries({ queryKey: ["signatures"] });
           }}
         />
       )}
