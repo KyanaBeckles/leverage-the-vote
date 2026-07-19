@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, XCircle, AlertTriangle, FileText, Search, Plus, HelpCircle, BadgeCheck } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import SignatureEntryForm from "../components/validation/SignatureEntryForm";
 import MatchPendingButton from "../components/validation/MatchPendingButton";
+import SignatureRow from "../components/validation/SignatureRow";
 
 // Scans are stored per side (scan_url_front / scan_url_back, plus legacy
 // scan_url on older sheets). Shows whichever sides exist with a toggle.
@@ -73,6 +73,7 @@ function SheetScanViewer({ sheet }) {
 
 export default function PetitionValidation() {
   const [selectedSheet, setSelectedSheet] = useState(null);
+  const [editingSigId, setEditingSigId] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: campaigns = [] } = useQuery({
@@ -151,7 +152,7 @@ export default function PetitionValidation() {
               <CardTitle className="text-sm font-medium">Select Petition Sheet</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={selectedSheet?.id || ""} onValueChange={(id) => setSelectedSheet(sheets.find(s => s.id === id))}>
+              <Select value={selectedSheet?.id || ""} onValueChange={(id) => { setSelectedSheet(sheets.find(s => s.id === id)); setEditingSigId(null); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choose a scanned sheet..." />
                 </SelectTrigger>
@@ -209,33 +210,16 @@ export default function PetitionValidation() {
                 </CardHeader>
                 <CardContent className="space-y-1">
                   {signatures.map((sig) => (
-                    <div key={sig.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 text-sm">
-                      <span className="text-xs text-muted-foreground w-6">#{sig.line_number}</span>
-                      <span className="font-medium flex-1">{sig.signer_name}</span>
-                      <span className="text-xs text-muted-foreground flex-1 truncate">{sig.signer_address}</span>
-                      {sig.verification_status === "certified" && <BadgeCheck className="w-4 h-4 text-emerald-600" />}
-                      {sig.verification_status === "matched" && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                      {sig.verification_status === "unmatched" && <XCircle className="w-4 h-4 text-red-500" />}
-                      {sig.verification_status === "flagged" && <AlertTriangle className="w-4 h-4 text-amber-500" />}
-                      {sig.verification_status === "pending" && <div className="w-4 h-4 rounded-full bg-muted" />}
-                      {sig.verification_status === "certified" ? (
-                        <Button
-                          variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground"
-                          onClick={() => certifyMutation.mutate({ id: sig.id, certified: false })}
-                          title="Remove the recorded clerk certification (entered in error)"
-                        >
-                          Undo
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline" size="sm" className="h-6 px-2 text-xs"
-                          onClick={() => certifyMutation.mutate({ id: sig.id, certified: true })}
-                          title="Record the town clerk's certification — the red checkmark next to this line on the returned sheet"
-                        >
-                          Clerk ✓
-                        </Button>
-                      )}
-                    </div>
+                    <SignatureRow
+                      key={sig.id}
+                      sig={sig}
+                      campaignId={campaign?.id}
+                      sheet={selectedSheet}
+                      isEditing={editingSigId === sig.id}
+                      onEdit={setEditingSigId}
+                      onCancelEdit={() => setEditingSigId(null)}
+                      certifyMutation={certifyMutation}
+                    />
                   ))}
                   {signatures.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-6">No signatures entered yet</p>
